@@ -1,7 +1,7 @@
 # Folio — Design Spec
 
 **Date:** 2026-10-12
-**Status:** Approved in brainstorming, pending written-spec review
+**Status:** Approved
 
 ## Purpose
 
@@ -26,7 +26,7 @@ A personal macOS app for *reading* local Markdown files beautifully. Primary con
 
 - **Shell:** Tauri 2 (Rust backend, WKWebView frontend).
 - **Frontend:** Vite + React + TypeScript.
-- **Rendering:** `markdown-it` with plugins: GFM tables/strikethrough/autolinks (core), `markdown-it-task-lists`, `markdown-it-footnote`, `markdown-it-anchor`. Code highlighting via Shiki.
+- **Rendering:** `markdown-it` with plugins: GFM tables/strikethrough/autolinks (core), `markdown-it-task-lists`, `markdown-it-footnote`. Heading ids come from a small custom core rule using `github-slugger`, so `#anchors` match GitHub's. Code highlighting via Shiki (JavaScript regex engine, no WASM; dual light/dark themes as CSS variables so appearance switches need no re-render).
 - **Sanitization:** DOMPurify on rendered HTML.
 - **Fonts:** Bundled via Fontsource: Literata, Source Serif 4, Inter, Atkinson Hyperlegible, JetBrains Mono. iA Writer Quattro and iA Writer Mono bundled from the iA-Fonts repo (OFL).
 - **Tests:** Vitest (frontend), `cargo test` (Rust).
@@ -40,7 +40,7 @@ Project location: `~/Sites/personal/folio/`. Bundle identifier: `com.alexvallejo
 
 | Unit | Responsibility | Interface |
 |---|---|---|
-| `fs` | Read a file as text (lossy UTF-8). List a folder as a tree, including only `.md`/`.markdown` files and dirs that contain them; skip `node_modules`, `.git`, and dot-dirs. | Commands `read_file(path) -> {text, size}`, `list_tree(root) -> TreeNode` |
+| `fs` | Read a file as text (lossy UTF-8, BOM stripped). List a folder as a tree, including only `.md`/`.markdown` files and dirs that contain them; skip `node_modules` and any dot-file or dot-dir (including `.git`); never follow symlinked dirs; stop at depth 10 or 5,000 files and report `truncated`. | Commands `read_file(path) -> {text, size}`, `list_tree(root) -> TreeNode` |
 | `watch` | Watch the open file and open folder via the `notify` crate; debounce ~100ms. | Commands `watch_file(path)`, `watch_folder(root)`; events `file-changed`, `file-removed`, `tree-changed` |
 | `open` | Register `.md`/`.markdown` document types in `Info.plist`; handle macOS open-file events (Finder double-click, Dock drop), including at cold start. | Event `open-path(path)` |
 | `editor` | Launch configured editor command with the current file path. | Command `open_in_editor(path, command)` |
@@ -93,14 +93,16 @@ CSS variables per variant (minimum): `--bg`, `--fg`, `--muted`, `--accent`, `--b
   "codeFont": "JetBrains Mono",
   "fontSize": 18,
   "lineHeight": 1.65,
-  "maxWidth": "68ch",
+  "maxWidth": 68,
   "editorCommand": "code",
   "lastFolder": "~/Sites/personal/dayoff"
 }
 ```
 
 Rules:
-- Only keys differing from the active preset's defaults are written (plus `theme`, `appearance`, `editorCommand`, `lastFolder` when set).
+- Only keys differing from the defaults are written (font defaults come from the active preset; `theme` is written when not `paper`). Changing theme never turns the old preset's fonts into overrides.
+- `maxWidth` is a number of `ch`.
+- If `config.json` is a symlink (e.g. into a dotfiles repo), writes go to the link target and the link is preserved; hand edits to the target are picked up.
 - Out-of-range numeric values are clamped; unknown keys are ignored and preserved.
 - Hand edits are picked up live. Invalid JSON → keep last good config in memory, show a non-blocking toast; never overwrite the file while it is invalid.
 - Missing file → defaults; file created on first settings change.
@@ -119,7 +121,7 @@ Rules:
 
 **TOC:** H1–H4. Scroll-spy highlights the current section; click smooth-scrolls. Hidden when the document has fewer than 3 headings.
 
-**Find (⌘F):** Floating bar; case-insensitive match highlighting via the CSS Custom Highlight API; Enter / ⇧Enter for next/previous; Esc closes; shows "n of m".
+**Find (⌘F):** Floating bar; case-insensitive match highlighting via the CSS Custom Highlight API; Enter / ⇧Enter for next/previous; Esc closes; shows "n of m". v1 limitation: a match must sit inside a single text node (so it won't span differently-highlighted code tokens or inline formatting).
 
 **Keyboard:**
 
