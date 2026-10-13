@@ -10,10 +10,12 @@ import { applyTheme, resolveAppearance } from "../themes/apply";
 import { PRESETS } from "../themes/presets";
 import { DocumentView, LargeFilePrompt } from "./DocumentView";
 import { EmptyState } from "./EmptyState";
+import { FindBar } from "./FindBar";
 import { scrollToFragment } from "./scroll";
 import { actionFor, type Action } from "./shortcuts";
 import { Sidebar } from "./Sidebar";
 import { Toasts, useToasts } from "./Toasts";
+import { MIN_TOC_HEADINGS, Toc } from "./Toc";
 import { useDocument } from "./useDocument";
 import { useFolder } from "./useFolder";
 import { useRenderer } from "./useRenderer";
@@ -50,6 +52,10 @@ export function App() {
   const [fragment, setFragment] = useState<string | null>(null);
   const clearFragment = useCallback(() => setFragment(null), []);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [tocOpen, setTocOpen] = useState(true);
+  const [findOpen, setFindOpen] = useState(false);
+  const [findFocus, setFindFocus] = useState(0);
+  const closeFind = useCallback(() => setFindOpen(false), []);
 
   const openFile = useCallback(
     async (path: string, target: string | null = null) => {
@@ -136,12 +142,31 @@ export function App() {
       case "toggle-sidebar":
         setSidebarOpen((open) => !open);
         return true;
+      case "find":
+        if (!doc.rendered || doc.isEmpty) return false;
+        setFindOpen(true);
+        setFindFocus((n) => n + 1);
+        return true;
+      case "toggle-toc":
+        setTocOpen((open) => !open);
+        return true;
       default:
         return false;
     }
   });
+  const onEscape = useEffectEvent((): boolean => {
+    if (findOpen) {
+      setFindOpen(false);
+      return true;
+    }
+    return false;
+  });
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) {
+        if (onEscape()) event.preventDefault();
+        return;
+      }
       const action = actionFor(event);
       if (action && onShortcut(action)) event.preventDefault();
     };
@@ -175,16 +200,21 @@ export function App() {
     );
   }
 
+  const headings = doc.rendered && !doc.isEmpty ? doc.rendered.headings : [];
+  const showToc = tocOpen && !doc.pendingLarge && headings.length >= MIN_TOC_HEADINGS;
+
   return (
     <div className="app">
       {sidebarOpen && folder.root && (
         <Sidebar key={folder.root} root={folder.root} tree={folder.tree} currentPath={doc.path} onOpen={(path) => void openFile(path)} />
       )}
       <main className="main">
+        {findOpen && doc.rendered && <FindBar scrollRef={scrollRef} html={doc.rendered.html} focusSignal={findFocus} onClose={closeFind} />}
         <div className="doc-scroll" ref={scrollRef}>
           {body}
         </div>
       </main>
+      {showToc && doc.rendered && <Toc headings={headings} html={doc.rendered.html} scrollRef={scrollRef} />}
       <Toasts toasts={toasts} onDismiss={dismiss} />
     </div>
   );
