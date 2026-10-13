@@ -5,6 +5,7 @@ import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { type ReactNode, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { api, events } from "../lib/api";
 import { abbreviateHome, basename, expandHome } from "../lib/paths";
+import { DEFAULT_FONT_SIZE } from "../settings/schema";
 import { createSettingsStore } from "../settings/store";
 import { applyTheme, resolveAppearance } from "../themes/apply";
 import { PRESETS } from "../themes/presets";
@@ -12,10 +13,12 @@ import { DocumentView, LargeFilePrompt } from "./DocumentView";
 import { EmptyState } from "./EmptyState";
 import { FindBar } from "./FindBar";
 import { scrollToFragment } from "./scroll";
+import { SettingsPanel } from "./SettingsPanel";
 import { actionFor, type Action } from "./shortcuts";
 import { Sidebar } from "./Sidebar";
-import { Toasts, useToasts } from "./Toasts";
 import { MIN_TOC_HEADINGS, Toc } from "./Toc";
+import { Toasts, useToasts } from "./Toasts";
+import { Toolbar } from "./Toolbar";
 import { useDocument } from "./useDocument";
 import { useFolder } from "./useFolder";
 import { useRenderer } from "./useRenderer";
@@ -26,9 +29,10 @@ export function App() {
 
   // Settings and theme
   const store = useMemo(() => createSettingsStore({ read: api.readConfig, write: api.writeConfig }, notify), [notify]);
-  const { settings, loaded } = useSyncExternalStore(store.subscribe, store.getState);
+  const { settings, invalid, loaded } = useSyncExternalStore(store.subscribe, store.getState);
   const appearance = resolveAppearance(settings.appearance, useSystemDark());
   useLayoutEffect(() => applyTheme(document.documentElement, settings, appearance), [settings, appearance]);
+  const updateSettings = useCallback((patch: Parameters<typeof store.update>[0]) => void store.update(patch), [store]);
 
   useEffect(() => {
     void store.load();
@@ -51,11 +55,15 @@ export function App() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [fragment, setFragment] = useState<string | null>(null);
   const clearFragment = useCallback(() => setFragment(null), []);
+
+  // Panels
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [tocOpen, setTocOpen] = useState(true);
   const [findOpen, setFindOpen] = useState(false);
   const [findFocus, setFindFocus] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const closeFind = useCallback(() => setFindOpen(false), []);
+  const hasDocument = doc.rendered !== null && !doc.isEmpty && !doc.pendingLarge;
 
   const openFile = useCallback(
     async (path: string, target: string | null = null) => {
@@ -130,6 +138,17 @@ export function App() {
     [openFile, notify],
   );
 
+  const openFind = useCallback(() => {
+    setFindOpen(true);
+    setFindFocus((n) => n + 1);
+  }, []);
+
+  const openInEditor = useCallback(() => {
+    if (!doc.path) return;
+    const command = settings.editorCommand;
+    api.openInEditor(doc.path, command).catch(() => notify(`Couldn't run \`${command}\` — set your editor in Settings`));
+  }, [doc.path, settings.editorCommand, notify]);
+
   // Keyboard
   const onShortcut = useEffectEvent((action: Action): boolean => {
     switch (action) {
@@ -142,21 +161,37 @@ export function App() {
       case "toggle-sidebar":
         setSidebarOpen((open) => !open);
         return true;
-      case "find":
-        if (!doc.rendered || doc.isEmpty) return false;
-        setFindOpen(true);
-        setFindFocus((n) => n + 1);
-        return true;
       case "toggle-toc":
         setTocOpen((open) => !open);
         return true;
-      default:
-        return false;
+      case "find":
+        if (!hasDocument) return false;
+        openFind();
+        return true;
+      case "open-in-editor":
+        openInEditor();
+        return true;
+      case "font-bigger":
+        updateSettings({ fontSize: settings.fontSize + 1 });
+        return true;
+      case "font-smaller":
+        updateSettings({ fontSize: settings.fontSize - 1 });
+        return true;
+      case "font-reset":
+        updateSettings({ fontSize: DEFAULT_FONT_SIZE });
+        return true;
+      case "settings":
+        setSettingsOpen((open) => !open);
+        return true;
     }
   });
   const onEscape = useEffectEvent((): boolean => {
     if (findOpen) {
       setFindOpen(false);
+      return true;
+    }
+    if (settingsOpen) {
+      setSettingsOpen(false);
       return true;
     }
     return false;
@@ -209,10 +244,26 @@ export function App() {
         <Sidebar key={folder.root} root={folder.root} tree={folder.tree} currentPath={doc.path} onOpen={(path) => void openFile(path)} />
       )}
       <main className="main">
+        <Toolbar
+          title={doc.path ? basename(doc.path) : "Folio"}
+          theme={settings.theme}
+          onTheme={(theme) => updateSettings({ theme })}
+          canToggleSidebar={folder.root !== null}
+          sidebarOpen={sidebarOpen && folder.root !== null}
+          onToggleSidebar={() => setSidebarOpen((open) => !open)}
+          hasDocument={hasDocument}
+          onFind={openFind}
+          onOpenInEditor={openInEditor}
+          tocOpen={tocOpen}
+          onToggleToc={() => setTocOpen((open) => !open)}
+          settingsOpen={settingsOpen}
+          onSettings={() => setSettingsOpen((open) => !open)}
+        />
         {findOpen && doc.rendered && <FindBar scrollRef={scrollRef} html={doc.rendered.html} focusSignal={findFocus} onClose={closeFind} />}
         <div className="doc-scroll" ref={scrollRef}>
           {body}
         </div>
+        {settingsOpen && <SettingsPanel settings={settings} invalid={invalid} onChange={updateSettings} onClose={() => setSettingsOpen(false)} />}
       </main>
       {showToc && doc.rendered && <Toc headings={headings} html={doc.rendered.html} scrollRef={scrollRef} />}
       <Toasts toasts={toasts} onDismiss={dismiss} />
