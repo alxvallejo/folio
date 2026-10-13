@@ -98,9 +98,10 @@ export function App() {
       .then((paths) => {
         const last = paths[paths.length - 1];
         if (last) onOpenPath(last);
-      });
+      })
+      .catch((e) => notify(`Couldn't receive files from Finder: ${String(e)}`));
     return () => void unlisten.then((stop) => stop());
-  }, []);
+  }, [notify]);
 
   useEffect(() => {
     void getCurrentWindow().setTitle(doc.path ? basename(doc.path) : "Folio");

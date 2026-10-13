@@ -34,11 +34,15 @@ export function useFolder(notify: (message: string) => void) {
         (next) => {
           if (rootRef.current === changedRoot) setTree(next);
         },
-        () => {},
+        (e) => {
+          if (rootRef.current !== changedRoot) return;
+          notify(`Couldn't read ${basename(changedRoot)}: ${String(e)}`);
+          setTree(null);
+        },
       );
     });
     return () => void unlisten.then((stop) => stop());
-  }, []);
+  }, [notify]);
 
   return { root, tree, open };
 }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, events } from "../lib/api";
 import { basename, dirname } from "../lib/paths";
 import type { Render, RenderResult, ThemePair } from "../render";
+import { createRequestGuard } from "./requestGuard";
 
 export const LARGE_FILE_BYTES = 5 * 1024 * 1024;
 
@@ -32,11 +33,16 @@ export function useDocument(render: Render | null, themes: ThemePair, notify: (m
   const [removed, setRemoved] = useState(false);
   const [pendingLarge, setPendingLarge] = useState<PendingLarge | null>(null);
   const pathRef = useRef<string | null>(null);
+  const guard = useRef(createRequestGuard()).current;
 
+  /** `reload` = background refresh of the open file (never supersedes a user open). */
   const load = useCallback(
-    async (path: string, confirmed: boolean) => {
+    async (path: string, confirmed: boolean, reload: boolean) => {
+      const token = reload ? guard.snapshot() : guard.begin();
+      const stale = () => !guard.isCurrent(token) || (reload && path !== pathRef.current);
       try {
         const { text, size } = await api.readFile(path);
+        if (stale()) return false;
         const isCurrent = path === pathRef.current;
         if (size > LARGE_FILE_BYTES && !confirmed && !isCurrent) {
           setPendingLarge({ path, size });
@@ -44,6 +50,7 @@ export function useDocument(render: Render | null, themes: ThemePair, notify: (m
         }
         if (!isCurrent) {
           await api.watchFile(path).catch((e) => notify(`Live reload is off for ${basename(path)}: ${String(e)}`));
+          if (stale()) return false;
         }
         pathRef.current = path;
         setPendingLarge(null);
@@ -51,17 +58,17 @@ export function useDocument(render: Render | null, themes: ThemePair, notify: (m
         setLoaded({ path, text });
         return true;
       } catch (e) {
-        notify(`Couldn't open ${basename(path)}: ${String(e)}`);
+        if (!stale()) notify(`Couldn't open ${basename(path)}: ${String(e)}`);
         return false;
       }
     },
-    [notify],
+    [notify, guard],
   );
 
   useEffect(() => {
     const unlisteners = [
       events.onFileChanged((path) => {
-        if (path === pathRef.current) void load(path, true);
+        if (path === pathRef.current) void load(path, true, true);
       }),
       events.onFileRemoved((path) => {
         if (path === pathRef.current) setRemoved(true);
@@ -78,9 +85,9 @@ export function useDocument(render: Render | null, themes: ThemePair, notify: (m
     [loaded, render, themes],
   );
 
-  const open = useCallback((path: string) => load(path, false), [load]);
+  const open = useCallback((path: string) => load(path, false, false), [load]);
   const confirmLarge = useCallback(
-    () => (pendingLarge ? load(pendingLarge.path, true) : Promise.resolve(false)),
+    () => (pendingLarge ? load(pendingLarge.path, true, false) : Promise.resolve(false)),
     [load, pendingLarge],
   );
   const cancelLarge = useCallback(() => setPendingLarge(null), []);
