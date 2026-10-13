@@ -13,8 +13,11 @@ export function sanitize(html: string): string {
     // DOMPurify's clobbering guard strips ids such as "links", "images", and "title",
     // which are ordinary heading slugs. Scripts and on* handlers are still removed;
     // `name`, the attribute that can shadow document properties, is forbidden instead.
+    // form/map/area/dialog and xlink:href/popover are forbidden because they navigate the
+    // app webview or overlay the app chrome outside the data-folio-* link handler.
     SANITIZE_DOM: false,
-    FORBID_ATTR: ["name"],
+    FORBID_TAGS: ["form", "map", "area", "dialog"],
+    FORBID_ATTR: ["name", "xlink:href", "popover"],
   });
 }
 

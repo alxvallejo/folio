@@ -42,6 +42,28 @@ describe("sanitizing", () => {
     }
   });
 
+  it("strips forms", () => {
+    const out = html('<form action="https://evil.test"><button>go</button></form>');
+    expect(out).not.toContain("<form");
+    expect(out).not.toContain("evil.test");
+  });
+
+  it("strips image maps", () => {
+    const out = html('<map name="m"><area href="https://evil.test" shape="rect" coords="0,0,1,1"></map>');
+    expect(out).not.toContain("<area");
+    expect(out).not.toContain("evil.test");
+  });
+
+  it("strips SVG xlink:href links", () => {
+    expect(html('<svg><a xlink:href="https://evil.test"><text>x</text></a></svg>')).not.toContain("evil.test");
+  });
+
+  it("strips dialog and popover", () => {
+    const out = html("<dialog open>x</dialog>\n\n<div popover>y</div>");
+    expect(out).not.toContain("<dialog");
+    expect(out).not.toContain("popover");
+  });
+
   it("drops name attributes, which can shadow document properties", () => {
     expect(html('<img name="cookie" src="https://x.test/a.png">')).not.toContain("name=");
   });
