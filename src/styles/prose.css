@@ -1,0 +1,52 @@
+.prose {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 48px 32px 40vh;
+  font-family: var(--font-body);
+  font-size: var(--font-size);
+  line-height: var(--line-height);
+  color: var(--fg);
+  overflow-wrap: break-word;
+}
+.prose > :first-child { margin-top: 0; }
+.prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 { margin: 1.8em 0 .6em; font-family: var(--font-heading); font-weight: 650; line-height: 1.25; }
+.prose h1 { font-size: 2em; }
+.prose h2 { font-size: 1.45em; padding-bottom: .25em; border-bottom: 1px solid var(--border); }
+.prose h3 { font-size: 1.2em; }
+.prose h4 { font-size: 1.05em; }
+.prose h5, .prose h6 { font-size: 1em; color: var(--muted); }
+.prose p, .prose ul, .prose ol, .prose blockquote, .prose pre, .prose table, .prose details, .prose dl { margin: 0 0 1em; }
+.prose ul, .prose ol { padding-left: 1.6em; }
+.prose li + li { margin-top: .25em; }
+.prose li > ul, .prose li > ol { margin: .25em 0 0; }
+.prose a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: .18em; cursor: pointer; }
+.prose strong { font-weight: 650; }
+.prose hr { margin: 2em 0; border: 0; border-top: 1px solid var(--border); }
+.prose blockquote { margin-left: 0; padding-left: 1em; border-left: 3px solid var(--border); color: var(--muted); }
+.prose img { max-width: 100%; height: auto; border-radius: 4px; }
+.prose code, .prose kbd, .prose pre { font-family: var(--font-code); }
+.prose :not(pre) > code { padding: .12em .36em; border-radius: 4px; font-size: .86em; background: color-mix(in srgb, var(--fg) 7%, transparent); }
+.prose kbd { padding: .1em .45em; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; font-size: .8em; }
+.prose pre { padding: 14px 18px; border-radius: 8px; overflow-x: auto; font-size: .84em; line-height: 1.55; background: var(--code-bg); }
+.prose pre code { padding: 0; font-size: inherit; background: none; }
+.prose table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-size: .94em; }
+.prose th, .prose td { padding: .4em .8em; border: 1px solid var(--border); }
+.prose th { font-weight: 650; background: color-mix(in srgb, var(--fg) 4%, transparent); }
+.prose details { padding: .5em .9em; border: 1px solid var(--border); border-radius: 8px; }
+.prose summary { cursor: pointer; font-weight: 600; }
+.prose details[open] summary { margin-bottom: .5em; }
+.prose .task-list-item { list-style: none; }
+.prose .task-list-item-checkbox { margin: 0 .5em 0 -1.35em; vertical-align: -.1em; }
+.prose .footnotes-sep { margin-top: 3em; }
+.prose .footnotes { font-size: .88em; color: var(--muted); }
+
+/* Shiki emits both themes as CSS variables; pick one by appearance, no re-render needed. */
+.prose pre.shiki { background-color: var(--code-bg); }
+:root[data-appearance="light"] .prose .shiki,
+:root[data-appearance="light"] .prose .shiki span { color: var(--shiki-light); font-style: var(--shiki-light-font-style); }
+:root[data-appearance="dark"] .prose .shiki,
+:root[data-appearance="dark"] .prose .shiki span { color: var(--shiki-dark); font-style: var(--shiki-dark-font-style); }
+
+/* Find (CSS Custom Highlight API) */
+::highlight(folio-find) { background-color: color-mix(in srgb, var(--accent) 28%, transparent); }
+::highlight(folio-find-current) { background-color: color-mix(in srgb, var(--accent) 60%, transparent); color: var(--bg); }
