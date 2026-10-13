@@ -31,6 +31,23 @@ describe("generated Shiki themes", () => {
     expect(theme.settings[0]).toEqual({ settings: { foreground: palette.codeFg, background: palette.codeBg } });
   });
 
+  it("maps each syntax key to its scope", () => {
+    const palette = paletteFor("riso", "light");
+    const theme = buildShikiTheme("riso", "light", palette);
+    const firstScopes = {
+      comment: "comment",
+      keyword: "keyword",
+      string: "string",
+      number: "constant.numeric",
+      function: "entity.name.function",
+      type: "entity.name.type",
+    } as const;
+    for (const [key, scope] of Object.entries(firstScopes)) {
+      const entry = theme.settings.find((s) => Array.isArray(s.scope) && s.scope.includes(scope));
+      expect(entry?.settings.foreground, key).toBe(palette.syntax[key as keyof typeof palette.syntax]);
+    }
+  });
+
   it("italicizes comments", () => {
     const theme = buildShikiTheme("klein", "dark", paletteFor("klein", "dark"));
     const comment = theme.settings.find((s) => Array.isArray(s.scope) && s.scope.includes("comment"));

@@ -19,4 +19,6 @@ import "@fontsource-variable/space-grotesk/wght.css";
 import "@fontsource/dm-serif-display/400.css";
 import "@fontsource-variable/geist/wght.css";
 import "@fontsource-variable/geist-mono/wght.css";
+import "@fontsource-variable/geist/wght-italic.css";
+import "@fontsource-variable/geist-mono/wght-italic.css";
 import "./ia-fonts.css";
