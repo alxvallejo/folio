@@ -64,6 +64,12 @@ describe("sanitizing", () => {
     expect(out).not.toContain("popover");
   });
 
+  it("strips style blocks that could restyle the app", () => {
+    const out = html("text\n\n<style>body{display:none}</style>");
+    expect(out).not.toContain("<style");
+    expect(out).not.toContain("display:none");
+  });
+
   it("drops name attributes, which can shadow document properties", () => {
     expect(html('<img name="cookie" src="https://x.test/a.png">')).not.toContain("name=");
   });
@@ -85,6 +91,19 @@ describe("images", () => {
       toAssetUrl("/notes/100%.png"),
       toAssetUrl("/notes/café.png"),
     ]);
+  });
+
+  it("rewrites relative srcset on picture sources and images", () => {
+    const out = dom(
+      html('<picture><source srcset="dark.png" media="(prefers-color-scheme: dark)"><img src="light.png"></picture>'),
+    );
+    expect(out.querySelector("source")!.getAttribute("srcset")).toBe(toAssetUrl("/notes/dark.png"));
+    expect(out.querySelector("img")!.getAttribute("src")).toBe(toAssetUrl("/notes/light.png"));
+  });
+
+  it("rewrites only relative srcset candidates and keeps descriptors", () => {
+    const out = dom(html('<img src="a.png" srcset="a.png 1x, https://x.test/b.png 2x">'));
+    expect(out.querySelector("img")!.getAttribute("srcset")).toBe(`${toAssetUrl("/notes/a.png")} 1x, https://x.test/b.png 2x`);
   });
 
   it("leaves remote and data images alone", () => {

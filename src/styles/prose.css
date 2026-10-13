@@ -1,4 +1,5 @@
 .prose {
+  contain: paint;
   max-width: var(--max-width);
   margin: 0 auto;
   padding: 48px 32px 40vh;

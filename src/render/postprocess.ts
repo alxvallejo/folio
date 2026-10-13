@@ -15,8 +15,9 @@ export function sanitize(html: string): string {
     // `name`, the attribute that can shadow document properties, is forbidden instead.
     // form/map/area/dialog and xlink:href/popover are forbidden because they navigate the
     // app webview or overlay the app chrome outside the data-folio-* link handler.
+    // style is forbidden because a document <style> block would restyle the whole app, not just the prose.
     SANITIZE_DOM: false,
-    FORBID_TAGS: ["form", "map", "area", "dialog"],
+    FORBID_TAGS: ["form", "map", "area", "dialog", "style"],
     FORBID_ATTR: ["name", "xlink:href", "popover"],
   });
 }
@@ -42,10 +43,26 @@ function splitUrl(url: string): { path: string; fragment: string | null } {
 const isExternal = (url: string) => SCHEME.test(url) || url.startsWith("//");
 
 export function rewriteLinks(root: ParentNode, { baseDir, toAssetUrl }: RewriteOptions): void {
+  const toAsset = (url: string) => toAssetUrl(resolvePath(baseDir, safeDecode(splitUrl(url).path)));
+
+  for (const el of root.querySelectorAll("img[srcset], source[srcset]")) {
+    const rewritten = (el.getAttribute("srcset") ?? "")
+      .split(",")
+      .map((candidate) => {
+        const trimmed = candidate.trim();
+        const [url, ...descriptor] = trimmed.split(/\s+/);
+        if (!url || isExternal(url)) return trimmed;
+        return [toAsset(url), ...descriptor].join(" ");
+      })
+      .filter(Boolean)
+      .join(", ");
+    el.setAttribute("srcset", rewritten);
+  }
+
   for (const img of root.querySelectorAll("img[src]")) {
     const src = img.getAttribute("src") ?? "";
     if (!src || isExternal(src)) continue;
-    img.setAttribute("src", toAssetUrl(resolvePath(baseDir, safeDecode(splitUrl(src).path))));
+    img.setAttribute("src", toAsset(src));
   }
 
   for (const a of root.querySelectorAll<HTMLAnchorElement>("a[href]")) {
