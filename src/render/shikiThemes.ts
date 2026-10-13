@@ -1,4 +1,4 @@
-import type { ThemeRegistrationRaw } from "@shikijs/types";
+import type { ThemeRegistrationRaw } from "shiki/types";
 import { THEME_IDS, paletteFor, supportsMode, type Mode, type Palette, type Syntax, type ThemeId } from "../themes/catalog";
 
 const SCOPES: Record<keyof Syntax, string[]> = {
