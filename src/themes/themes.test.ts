@@ -5,7 +5,7 @@ import { BODY_FONTS, CODE_FONTS, fontStack } from "./fonts";
 import { PRESET_IDS, PRESETS, isPresetId } from "./presets";
 
 const HEX = /^#[0-9a-f]{6}$/i;
-const PALETTE_KEYS = ["accent", "bg", "border", "codeBg", "fg", "muted", "selection"];
+const PALETTE_KEYS = ["accent", "bg", "border", "codeBg", "codeFg", "fg", "muted", "selection"];
 
 describe("presets", () => {
   it("has the six presets with paper first", () => {
@@ -39,6 +39,15 @@ describe("presets", () => {
   it("keeps Nord code blocks dark on the light page", () => {
     expect(PRESETS.nord.shiki).toEqual({ light: "nord", dark: "nord" });
     expect(PRESETS.nord.light.codeBg).toBe("#2e3440");
+  });
+
+  it("keeps code text distinguishable from the code background", () => {
+    for (const id of PRESET_IDS) {
+      for (const variant of ["light", "dark"] as const) {
+        const palette = PRESETS[id][variant];
+        expect(palette.codeFg, `${id}.${variant}`).not.toBe(palette.codeBg);
+      }
+    }
   });
 
   it("validates preset ids", () => {
@@ -77,6 +86,7 @@ describe("apply", () => {
     const vars = themeVariables(input, "dark");
     expect(vars["--bg"]).toBe(PRESETS.paper.dark.bg);
     expect(vars["--code-bg"]).toBe(PRESETS.paper.dark.codeBg);
+    expect(vars["--code-fg"]).toBe(PRESETS.paper.dark.codeFg);
     expect(vars["--font-size"]).toBe("18px");
     expect(vars["--line-height"]).toBe("1.65");
     expect(vars["--max-width"]).toBe("68ch");

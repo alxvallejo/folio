@@ -28,6 +28,7 @@ export function themeVariables(input: ThemeInput, appearance: ResolvedAppearance
     "--accent": palette.accent,
     "--border": palette.border,
     "--code-bg": palette.codeBg,
+    "--code-fg": palette.codeFg,
     "--selection": palette.selection,
     "--font-body": body,
     "--font-heading": body,
