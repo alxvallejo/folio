@@ -8,7 +8,7 @@ body {
   overflow: hidden;
 }
 button { font: inherit; color: inherit; }
-::selection { background: var(--selection); }
+::selection { background: var(--selection); color: var(--fg); }
 
 .app { display: flex; height: 100vh; }
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
@@ -34,7 +34,7 @@ button { font: inherit; color: inherit; }
 .theme-select:hover { border-color: var(--border); }
 .icon-button { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--muted); }
 .icon-button:hover:not(:disabled) { background: color-mix(in srgb, var(--fg) 8%, transparent); color: var(--fg); }
-.icon-button[aria-pressed="true"] { color: var(--accent); }
+.icon-button[aria-pressed="true"] { color: var(--link); }
 .icon-button:disabled { opacity: .35; }
 
 /* Table of contents */
@@ -43,7 +43,7 @@ button { font: inherit; color: inherit; }
 .toc ul { list-style: none; margin: 0; padding: 0; }
 .toc button { display: block; width: 100%; padding: 3px 14px; border: 0; background: none; text-align: left; line-height: 1.35; color: var(--muted); }
 .toc button:hover { color: var(--fg); }
-.toc button.active { color: var(--accent); }
+.toc button.active { color: var(--link); }
 
 /* Find */
 .find-bar { position: absolute; top: 48px; right: 20px; z-index: 5; display: flex; align-items: center; gap: 4px; padding: 5px 5px 5px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgb(0 0 0 / .15); }
@@ -66,8 +66,8 @@ button { font: inherit; color: inherit; }
 .notice, .empty-state { max-width: 440px; margin: 18vh auto 0; padding: 0 24px; text-align: center; }
 /* "folio" in Fraunces Black, printed in two offset inks like the icon. Fixed brand face; colors follow the theme. */
 .wordmark { position: relative; display: inline-block; margin: 0 0 14px; font-family: "Fraunces Variable", Fraunces, Georgia, serif; font-weight: 900; font-size: 72px; line-height: 1; letter-spacing: -0.02em; }
-.wordmark-under { position: absolute; left: .045em; top: .035em; color: var(--accent); }
-.wordmark-over { position: relative; color: var(--heading); }
+.wordmark-under { position: absolute; left: .045em; top: .035em; color: var(--wordmark-under); }
+.wordmark-over { position: relative; color: var(--wordmark-over); }
 .empty-state p, .notice p { color: var(--muted); }
 .empty-actions, .notice-actions { display: flex; justify-content: center; gap: 8px; margin-top: 16px; }
 .empty-actions button, .notice-actions button { padding: 7px 14px; border: 1px solid var(--border); border-radius: 7px; background: color-mix(in srgb, var(--fg) 4%, var(--bg)); }

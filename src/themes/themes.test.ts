@@ -68,6 +68,8 @@ describe("apply", () => {
       "--accent": p.accent,
       "--highlight": p.highlight,
       "--quote": p.quote,
+      "--wordmark-over": "#f3f1ea",
+      "--wordmark-under": "#ffd23f",
       "--code-bg": p.codeBg,
       "--code-fg": p.codeFg,
       "--heading-weight": "400",

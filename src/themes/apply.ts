@@ -43,6 +43,8 @@ export function themeVariables(input: ThemeInput, appearance: ResolvedAppearance
     "--code-bg": p.codeBg,
     "--code-fg": p.codeFg,
     "--quote": p.quote,
+    "--wordmark-over": p.wordmarkOver,
+    "--wordmark-under": p.wordmarkUnder,
     "--font-heading": fontStack(input.headingFont ?? theme.headingFont, "heading"),
     "--font-body": fontStack(input.bodyFont ?? theme.bodyFont, "body"),
     "--font-code": fontStack(input.codeFont ?? theme.codeFont, "code"),

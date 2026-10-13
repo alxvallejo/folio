@@ -4,7 +4,7 @@ import { contrastRatio } from "./contrast";
 import { isBundledFont } from "./fonts";
 
 const HEX = /^#[0-9a-f]{6}$/i;
-const PALETTE_KEYS = ["accent", "bg", "border", "codeBg", "codeFg", "fg", "heading", "highlight", "link", "linkUnderline", "muted", "quote", "selection", "syntax"];
+const PALETTE_KEYS = ["accent", "bg", "border", "codeBg", "codeFg", "fg", "heading", "highlight", "link", "linkUnderline", "muted", "quote", "selection", "syntax", "wordmarkOver", "wordmarkUnder"];
 const SYNTAX_KEYS = ["comment", "function", "keyword", "number", "string", "type"];
 
 const palettes: [string, Palette][] = THEME_IDS.flatMap((id) =>
@@ -41,6 +41,10 @@ describe("theme catalog", () => {
     expect(contrastRatio(p.muted, p.bg), "muted/bg").toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(p.link, p.bg), "link/bg").toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(p.heading, p.bg), "heading/bg").toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(p.fg, p.selection), "fg/selection").toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(p.fg, p.highlight), "fg/highlight").toBeGreaterThanOrEqual(4.5);
+    expect(p.wordmarkOver, "wordmark inks differ").not.toBe(p.wordmarkUnder);
+    expect(contrastRatio(p.wordmarkOver, p.bg), "wordmarkOver/bg").toBeGreaterThanOrEqual(3);
     for (const [key, color] of Object.entries(p.syntax)) {
       expect(contrastRatio(color, p.codeBg), `syntax.${key}/codeBg`).toBeGreaterThanOrEqual(3);
     }
