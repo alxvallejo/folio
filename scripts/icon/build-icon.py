@@ -6,7 +6,9 @@ The overlap of the two inks is a separately filled clip region, not a blend mode
 
 Usage:  python3 scripts/icon/build-icon.py
 Needs:  fontTools with brotli (pip3 install fonttools brotli), and `npm install` (for the font).
-Writes: src-tauri/icons/source/folio-icon.svg, docs/assets/folio-wordmark.svg
+Writes: src-tauri/icons/source/folio-icon.svg, docs/assets/folio-wordmark.svg, docs/assets/folio-wordmark-dark.svg
+Then rasterize the 512px icon:
+  rsvg-convert -w 512 -h 512 src-tauri/icons/source/folio-icon.svg -o docs/assets/folio-icon-512.png
 """
 import argparse
 from pathlib import Path
@@ -78,12 +80,12 @@ def two_ink(font: TTFont, run, height: float, left: float, top: float) -> tuple[
     return blue, coral, (x_max - x_min) * scale + dx, height + dy
 
 
-def inks(blue: str, coral: str) -> str:
+def inks(blue: str, coral: str, top_ink: str = BLUE, under_ink: str = CORAL, overlap_ink: str = OVERLAP) -> str:
     return (
         f'  <defs><clipPath id="coral-ink"><path d="{coral}"/></clipPath></defs>\n'
-        f'  <path d="{coral}" fill="{CORAL}"/>\n'
-        f'  <path d="{blue}" fill="{BLUE}"/>\n'
-        f'  <path d="{blue}" fill="{OVERLAP}" clip-path="url(#coral-ink)"/>\n'
+        f'  <path d="{coral}" fill="{under_ink}"/>\n'
+        f'  <path d="{blue}" fill="{top_ink}"/>\n'
+        f'  <path d="{blue}" fill="{overlap_ink}" clip-path="url(#coral-ink)"/>\n'
     )
 
 
@@ -101,14 +103,14 @@ def icon_svg(font: TTFont) -> str:
     )
 
 
-def wordmark_svg(font: TTFont) -> str:
+def wordmark_svg(font: TTFont, top_ink: str, under_ink: str, overlap_ink: str) -> str:
     run = glyph_run(font, "folio", tracking_em=-0.02)
     pad, height = 8.0, 160.0
     blue, coral, width, total = two_ink(font, run, height, pad, pad)
     w, h = round(width + 2 * pad), round(total + 2 * pad)
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}" role="img" aria-label="folio">\n'
-        + inks(blue, coral)
+        + inks(blue, coral, top_ink, under_ink, overlap_ink)
         + "</svg>\n"
     )
 
@@ -120,7 +122,12 @@ def main() -> None:
     font = load_font()
     icon = args.out_dir / "src-tauri/icons/source/folio-icon.svg"
     wordmark = args.out_dir / "docs/assets/folio-wordmark.svg"
-    for path, svg in ((icon, icon_svg(font)), (wordmark, wordmark_svg(font))):
+    wordmark_dark = args.out_dir / "docs/assets/folio-wordmark-dark.svg"
+    for path, svg in (
+        (icon, icon_svg(font)),
+        (wordmark, wordmark_svg(font, BLUE, CORAL, OVERLAP)),
+        (wordmark_dark, wordmark_svg(font, PAPER, CORAL, CORAL)),  # light top ink: the overlap reads coral
+    ):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(svg)
         print(f"wrote {path.relative_to(args.out_dir)}")
