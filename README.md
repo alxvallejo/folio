@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/assets/folio-wordmark.svg" alt="folio" width="260"></p>
+
 # Folio
 
 A personal macOS app for reading local Markdown files. Read-only: Folio never writes to your documents. Built with Tauri 2 and React/TypeScript.
