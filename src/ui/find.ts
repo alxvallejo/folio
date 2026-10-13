@@ -21,3 +21,8 @@ export function findRanges(root: Node, query: string): Range[] {
   }
   return ranges;
 }
+
+/** Whether the current match should scroll into view: only for an unconsumed user action, once results match the typed query. */
+export function shouldReveal({ token, consumed, resultsReady, current }: { token: number; consumed: number; resultsReady: boolean; current: number }): boolean {
+  return token !== consumed && resultsReady && current >= 0;
+}

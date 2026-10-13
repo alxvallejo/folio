@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronUp, X } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
-import { findRanges } from "./find";
+import { findRanges, shouldReveal } from "./find";
 
 interface Props {
   scrollRef: RefObject<HTMLDivElement | null>;
@@ -23,7 +23,9 @@ export function FindBar({ scrollRef, html, focusSignal, onClose }: Props) {
   const [index, setIndex] = useState(0);
   const [found, setFound] = useState<Found>({ query: "", ranges: [] });
   const inputRef = useRef<HTMLInputElement>(null);
-  const reveal = useRef(false);
+  // Bumped on user intent (typing, Enter, chevrons); the effect consumes each token once.
+  const [revealToken, setRevealToken] = useState(0);
+  const consumed = useRef(0);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -41,20 +43,26 @@ export function FindBar({ scrollRef, html, focusSignal, onClose }: Props) {
 
   useEffect(() => {
     if (!("highlights" in CSS)) return;
-    CSS.highlights.set(ALL, new Highlight(...found.ranges));
+    const all = new Highlight();
+    for (const r of found.ranges) all.add(r);
+    CSS.highlights.set(ALL, all);
+    const resultsReady = found.query === query;
     if (current < 0) {
       CSS.highlights.delete(CURRENT);
+      // No match for the typed query: spend the token so a later reload can't scroll.
+      if (resultsReady) consumed.current = revealToken;
       return;
     }
     const range = found.ranges[current];
-    CSS.highlights.set(CURRENT, new Highlight(range));
-    // Only scroll on user intent (typing, Enter), and only once results match the typed query,
-    // so a live reload with find open doesn't yank the reader to a match.
-    if (reveal.current && found.query === query) {
+    const mark = new Highlight();
+    mark.add(range);
+    CSS.highlights.set(CURRENT, mark);
+    // Only scroll on user intent, so a live reload with find open doesn't yank the reader.
+    if (shouldReveal({ token: revealToken, consumed: consumed.current, resultsReady, current })) {
       range.startContainer.parentElement?.scrollIntoView({ block: "center" });
-      reveal.current = false;
+      consumed.current = revealToken;
     }
-  }, [found, current, query]);
+  }, [found, current, query, revealToken]);
 
   useEffect(
     () => () => {
@@ -67,7 +75,7 @@ export function FindBar({ scrollRef, html, focusSignal, onClose }: Props) {
 
   const step = (delta: number) => {
     if (!count) return;
-    reveal.current = true;
+    setRevealToken((t) => t + 1);
     setIndex((i) => (Math.min(i, count - 1) + delta + count) % count);
   };
 
@@ -90,7 +98,7 @@ export function FindBar({ scrollRef, html, focusSignal, onClose }: Props) {
         aria-label="Find in document"
         spellCheck={false}
         onChange={(e) => {
-          reveal.current = true;
+          setRevealToken((t) => t + 1);
           setIndex(0);
           setQuery(e.target.value);
         }}
