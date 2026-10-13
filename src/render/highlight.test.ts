@@ -1,18 +1,19 @@
 import type { HighlighterCore } from "shiki/core";
 import { beforeAll, describe, expect, it } from "vitest";
-import { SHIKI_THEMES, getHighlighter, makeHighlight } from "./highlight";
+import { getHighlighter, makeHighlight } from "./highlight";
+import { FOLIO_SHIKI_THEMES } from "./shikiThemes";
 
 let hl: HighlighterCore;
 beforeAll(async () => {
   hl = await getHighlighter();
 });
 
-const highlight = () => makeHighlight(hl, { light: "github-light", dark: "github-dark" });
+const highlight = () => makeHighlight(hl, { light: "folio-riso-light", dark: "folio-klein-dark" });
 const tokenCount = (html: string) => (html.match(/--shiki-light:/g) ?? []).length;
 
 describe("highlight", () => {
   it("loads every preset theme", () => {
-    expect(hl.getLoadedThemes()).toEqual(expect.arrayContaining([...SHIKI_THEMES]));
+    expect(hl.getLoadedThemes()).toEqual(expect.arrayContaining(FOLIO_SHIKI_THEMES.map((t) => t.name)));
   });
 
   it("emits dual-theme CSS variables without inline colors", () => {
@@ -20,6 +21,12 @@ describe("highlight", () => {
     expect(html).toContain('class="shiki');
     expect(html).toContain("--shiki-dark:");
     expect(html).not.toMatch(/(^|[;"\s])color:/);
+  });
+
+  it("colors tokens from the active palettes", () => {
+    const html = highlight()("const x = 1;", "typescript");
+    expect(html).toMatch(/--shiki-light:#ff8a80/i); // riso keyword
+    expect(html).toMatch(/--shiki-dark:#ffd23f/i); // klein keyword
   });
 
   it("resolves language aliases", () => {

@@ -1,42 +1,20 @@
 import { createHighlighterCore, type HighlighterCore } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 import type { Highlight } from "./markdown";
+import { FOLIO_SHIKI_THEMES } from "./shikiThemes";
 
-export const SHIKI_THEMES = [
-  "github-light",
-  "github-dark",
-  "min-light",
-  "min-dark",
-  "catppuccin-latte",
-  "catppuccin-mocha",
-  "nord",
-  "rose-pine-dawn",
-  "rose-pine-moon",
-] as const;
-
-export type ShikiTheme = (typeof SHIKI_THEMES)[number];
-
+/** Names of the generated Shiki themes for the current light and dark picks (see shikiThemes.ts). */
 export interface ThemePair {
-  light: ShikiTheme;
-  dark: ShikiTheme;
+  light: string;
+  dark: string;
 }
 
 let highlighter: Promise<HighlighterCore> | null = null;
 
-/** One highlighter with every preset theme loaded, created on first use and reused. */
+/** One highlighter with every palette's generated theme loaded, created on first use and reused. */
 export function getHighlighter(): Promise<HighlighterCore> {
   highlighter ??= createHighlighterCore({
-    themes: [
-      import("@shikijs/themes/github-light"),
-      import("@shikijs/themes/github-dark"),
-      import("@shikijs/themes/min-light"),
-      import("@shikijs/themes/min-dark"),
-      import("@shikijs/themes/catppuccin-latte"),
-      import("@shikijs/themes/catppuccin-mocha"),
-      import("@shikijs/themes/nord"),
-      import("@shikijs/themes/rose-pine-dawn"),
-      import("@shikijs/themes/rose-pine-moon"),
-    ],
+    themes: FOLIO_SHIKI_THEMES,
     langs: [
       import("@shikijs/langs/javascript"),
       import("@shikijs/langs/typescript"),

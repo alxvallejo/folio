@@ -1,11 +1,14 @@
 import type { Appearance } from "../themes/apply";
-import { PRESETS, isPresetId, type PresetId } from "../themes/presets";
+import { DEFAULT_THEMES, isThemeId, supportsMode, type Mode, type ThemeId } from "../themes/catalog";
 
 export interface Settings {
-  theme: PresetId;
+  lightTheme: ThemeId;
+  darkTheme: ThemeId;
   appearance: Appearance;
-  bodyFont: string;
-  codeFont: string;
+  /** Font overrides; null means "use the shown theme's font". */
+  headingFont: string | null;
+  bodyFont: string | null;
+  codeFont: string | null;
   fontSize: number;
   lineHeight: number;
   maxWidth: number;
@@ -23,21 +26,23 @@ export const RANGES = {
 
 type NumericKey = keyof typeof RANGES;
 
-const BASE = {
-  theme: "paper",
+export const DEFAULTS: Settings = {
+  lightTheme: DEFAULT_THEMES.light,
+  darkTheme: DEFAULT_THEMES.dark,
   appearance: "system",
+  headingFont: null,
+  bodyFont: null,
+  codeFont: null,
   fontSize: 18,
   lineHeight: 1.65,
   maxWidth: 68,
   editorCommand: "code",
   lastFolder: null,
-} as const;
+};
 
-export const DEFAULT_FONT_SIZE = BASE.fontSize;
+export const DEFAULT_FONT_SIZE = DEFAULTS.fontSize;
 
-export function defaultsFor(theme: PresetId): Settings {
-  return { ...BASE, theme, bodyFont: PRESETS[theme].bodyFont, codeFont: PRESETS[theme].codeFont };
-}
+const FONT_KEYS = new Set<keyof Settings>(["headingFont", "bodyFont", "codeFont"]);
 
 function isNumericKey(key: string): key is NumericKey {
   return Object.prototype.hasOwnProperty.call(RANGES, key);
@@ -52,41 +57,55 @@ export function clampSetting(key: NumericKey, value: number): number {
 const isAppearance = (v: unknown): v is Appearance => v === "system" || v === "light" || v === "dark";
 const text = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 const finite = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+const themeFor = (v: unknown, mode: Mode): ThemeId => (isThemeId(v) && supportsMode(v, mode) ? v : DEFAULT_THEMES[mode]);
 
-export function effectiveSettings(raw: RawConfig): Settings {
-  const theme = isPresetId(raw.theme) ? raw.theme : BASE.theme;
-  const defaults = defaultsFor(theme);
+/**
+ * v1 → v0.2 migration. v1 stored a single `theme`. A v1 Paper user stays on Paper in both modes;
+ * every other v1 theme was removed, so it falls back to the defaults. The legacy key is always
+ * dropped, so the next write persists the migrated shape.
+ */
+export function migrate(raw: RawConfig): RawConfig {
+  if (!Object.prototype.hasOwnProperty.call(raw, "theme")) return raw;
+  const { theme, ...rest } = raw;
+  if (theme === "paper" && rest.lightTheme === undefined && rest.darkTheme === undefined) {
+    return { ...rest, lightTheme: "paper", darkTheme: "paper" };
+  }
+  return rest;
+}
+
+export function effectiveSettings(input: RawConfig): Settings {
+  const raw = migrate(input);
   const numeric = (key: NumericKey) => {
     const value = finite(raw[key]);
-    return value === null ? defaults[key] : clampSetting(key, value);
+    return value === null ? DEFAULTS[key] : clampSetting(key, value);
   };
   return {
-    theme,
-    appearance: isAppearance(raw.appearance) ? raw.appearance : defaults.appearance,
-    bodyFont: text(raw.bodyFont) ?? defaults.bodyFont,
-    codeFont: text(raw.codeFont) ?? defaults.codeFont,
+    lightTheme: themeFor(raw.lightTheme, "light"),
+    darkTheme: themeFor(raw.darkTheme, "dark"),
+    appearance: isAppearance(raw.appearance) ? raw.appearance : DEFAULTS.appearance,
+    headingFont: text(raw.headingFont),
+    bodyFont: text(raw.bodyFont),
+    codeFont: text(raw.codeFont),
     fontSize: numeric("fontSize"),
     lineHeight: numeric("lineHeight"),
     maxWidth: numeric("maxWidth"),
-    editorCommand: text(raw.editorCommand) ?? defaults.editorCommand,
+    editorCommand: text(raw.editorCommand) ?? DEFAULTS.editorCommand,
     lastFolder: text(raw.lastFolder),
   };
 }
 
 /**
- * Merges a change into the raw config, writing only keys that differ from the defaults.
- * Font defaults come from the resulting preset. Keys not in the patch are left exactly as
- * they were, so switching theme never turns the old preset's fonts into overrides.
+ * Merges a change into the (migrated) raw config, writing only keys that differ from the defaults.
+ * Keys not in the patch stay as they were. An emptied font override removes the key.
  */
 export function applyPatch(raw: RawConfig, patch: Partial<Settings>): RawConfig {
-  const next: RawConfig = { ...raw };
-  const defaults = defaultsFor(patch.theme ?? effectiveSettings(raw).theme);
+  const next: RawConfig = { ...migrate(raw) };
   for (const key of Object.keys(patch) as (keyof Settings)[]) {
     let value = patch[key];
     if (value === undefined) continue;
     if (typeof value === "number" && isNumericKey(key)) value = clampSetting(key, value);
-    const isDefault = key === "theme" ? value === BASE.theme : value === defaults[key];
-    if (value === null || isDefault) delete next[key];
+    if (typeof value === "string" && FONT_KEYS.has(key)) value = value.trim() || null;
+    if (value === null || value === DEFAULTS[key]) delete next[key];
     else next[key] = value;
   }
   return next;

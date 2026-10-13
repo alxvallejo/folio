@@ -79,7 +79,7 @@ export function useDocument(render: Render | null, themes: ThemePair, notify: (m
     };
   }, [load]);
 
-  // Re-renders when the text changes (live reload) or the preset's Shiki pair changes (theme switch).
+  // Re-renders when the text changes (live reload) or the light/dark theme picks change.
   const rendered = useMemo(
     () => (loaded && render ? render(loaded.text, { baseDir: dirname(loaded.path), themes }) : null),
     [loaded, render, themes],

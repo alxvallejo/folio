@@ -24,7 +24,7 @@ describe("settings store", () => {
     const io = new FakeIO(null);
     const store = createSettingsStore(io, vi.fn());
     await store.load();
-    expect(store.getState()).toMatchObject({ loaded: true, invalid: null, settings: { theme: "paper", fontSize: 18 } });
+    expect(store.getState()).toMatchObject({ loaded: true, invalid: null, settings: { lightTheme: "riso", fontSize: 18 } });
     expect(io.writes).toEqual([]);
   });
 
@@ -81,7 +81,7 @@ describe("settings store", () => {
     const io = new FakeIO(null);
     const store = createSettingsStore(io, vi.fn());
     await store.load();
-    await store.update({ theme: "nord" });
+    await store.update({ lightTheme: "citrus" });
     const listener = vi.fn();
     store.subscribe(listener);
     await store.load(); // config-changed fired by our own write

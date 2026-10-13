@@ -3,7 +3,7 @@ import fixture from "./__fixtures__/gfm.md?raw";
 import { createRenderer, type Render } from "./index";
 
 const toAssetUrl = (path: string) => `asset://localhost/${encodeURIComponent(path)}`;
-const themes = { light: "github-light", dark: "github-dark" } as const;
+const themes = { light: "folio-riso-light", dark: "folio-klein-dark" };
 
 let render: Render;
 beforeAll(async () => {

@@ -6,9 +6,10 @@ import { type ReactNode, useCallback, useEffect, useEffectEvent, useLayoutEffect
 import { api, events } from "../lib/api";
 import { abbreviateHome, basename, expandHome } from "../lib/paths";
 import { DEFAULT_FONT_SIZE } from "../settings/schema";
+import { shikiThemeName } from "../render/shikiThemes";
 import { createSettingsStore } from "../settings/store";
-import { applyTheme, resolveAppearance } from "../themes/apply";
-import { PRESETS } from "../themes/presets";
+import { activeTheme, applyTheme, resolveAppearance } from "../themes/apply";
+import { themesFor } from "../themes/catalog";
 import { DocumentView, LargeFilePrompt } from "./DocumentView";
 import { EmptyState } from "./EmptyState";
 import { FindBar } from "./FindBar";
@@ -48,7 +49,13 @@ export function App() {
 
   // Document and folder
   const render = useRenderer(notify);
-  const doc = useDocument(render, PRESETS[settings.theme].shiki, notify);
+  // Memoized: a fresh object every render would re-render the whole document.
+  const shikiThemes = useMemo(
+    () => ({ light: shikiThemeName(settings.lightTheme, "light"), dark: shikiThemeName(settings.darkTheme, "dark") }),
+    [settings.lightTheme, settings.darkTheme],
+  );
+  const doc = useDocument(render, shikiThemes, notify);
+  const shownTheme = activeTheme(settings, appearance);
   const folder = useFolder(notify);
   const { open: openDocument } = doc;
   const { open: openTree } = folder;
@@ -246,8 +253,9 @@ export function App() {
       <main className="main">
         <Toolbar
           title={doc.path ? basename(doc.path) : "Folio"}
-          theme={settings.theme}
-          onTheme={(theme) => updateSettings({ theme })}
+          theme={shownTheme}
+          themes={themesFor(appearance)}
+          onTheme={(theme) => updateSettings(appearance === "light" ? { lightTheme: theme } : { darkTheme: theme })}
           canToggleSidebar={folder.root !== null}
           sidebarOpen={sidebarOpen && folder.root !== null}
           onToggleSidebar={() => setSidebarOpen((open) => !open)}
@@ -263,7 +271,7 @@ export function App() {
         <div className="doc-scroll" ref={scrollRef}>
           {body}
         </div>
-        {settingsOpen && <SettingsPanel settings={settings} invalid={invalid} onChange={updateSettings} onClose={() => setSettingsOpen(false)} />}
+        {settingsOpen && <SettingsPanel settings={settings} shownTheme={shownTheme} invalid={invalid} onChange={updateSettings} onClose={() => setSettingsOpen(false)} />}
       </main>
       {showToc && doc.rendered && <Toc headings={headings} html={doc.rendered.html} scrollRef={scrollRef} />}
       <Toasts toasts={toasts} onDismiss={dismiss} />

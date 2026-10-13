@@ -1,28 +1,38 @@
 import { describe, expect, it } from "vitest";
-import { applyPatch, defaultsFor, effectiveSettings, parseConfig, serializeConfig } from "./schema";
+import { DEFAULTS, applyPatch, effectiveSettings, migrate, parseConfig, serializeConfig } from "./schema";
 
 describe("effectiveSettings", () => {
-  it("returns preset defaults for an empty config", () => {
+  it("returns the defaults for an empty config", () => {
     expect(effectiveSettings({})).toEqual({
-      theme: "paper",
+      lightTheme: "riso",
+      darkTheme: "klein",
       appearance: "system",
-      bodyFont: "Literata",
-      codeFont: "JetBrains Mono",
+      headingFont: null,
+      bodyFont: null,
+      codeFont: null,
       fontSize: 18,
       lineHeight: 1.65,
       maxWidth: 68,
       editorCommand: "code",
       lastFolder: null,
     });
+    expect(effectiveSettings({})).toEqual(DEFAULTS);
   });
 
-  it("takes font defaults from the configured preset", () => {
-    const s = effectiveSettings({ theme: "catppuccin" });
-    expect([s.bodyFont, s.codeFont]).toEqual(["Inter", "JetBrains Mono"]);
+  it("reads theme picks and trimmed font overrides", () => {
+    expect(effectiveSettings({ lightTheme: "citrus", darkTheme: "neon-noir", headingFont: " Charter ", codeFont: "Geist Mono" })).toMatchObject({
+      lightTheme: "citrus",
+      darkTheme: "neon-noir",
+      headingFont: "Charter",
+      bodyFont: null,
+      codeFont: "Geist Mono",
+    });
   });
 
-  it("lets overrides win over preset defaults", () => {
-    expect(effectiveSettings({ theme: "nord", bodyFont: "Charter" }).bodyFont).toBe("Charter");
+  it("falls back when a theme is unknown or picked for the wrong mode", () => {
+    expect(effectiveSettings({ lightTheme: "klein", darkTheme: "riso" })).toMatchObject({ lightTheme: "riso", darkTheme: "klein" });
+    expect(effectiveSettings({ lightTheme: "solarized", darkTheme: 7 })).toMatchObject({ lightTheme: "riso", darkTheme: "klein" });
+    expect(effectiveSettings({ lightTheme: "paper", darkTheme: "minimal" })).toMatchObject({ lightTheme: "paper", darkTheme: "minimal" });
   });
 
   it("clamps out-of-range numbers", () => {
@@ -31,8 +41,30 @@ describe("effectiveSettings", () => {
   });
 
   it("ignores values of the wrong type", () => {
-    const s = effectiveSettings({ theme: "solarized", appearance: "dim", fontSize: "20", bodyFont: "  ", lastFolder: 7 });
-    expect(s).toEqual(defaultsFor("paper"));
+    expect(effectiveSettings({ appearance: "dim", fontSize: "20", bodyFont: "  ", headingFont: 3, lastFolder: 7 })).toEqual(DEFAULTS);
+  });
+});
+
+describe("migrate", () => {
+  it("keeps a v1 Paper user on Paper in both modes", () => {
+    expect(migrate({ theme: "paper", fontSize: 20 })).toEqual({ fontSize: 20, lightTheme: "paper", darkTheme: "paper" });
+    expect(effectiveSettings({ theme: "paper" })).toMatchObject({ lightTheme: "paper", darkTheme: "paper" });
+  });
+
+  it("drops removed or unknown v1 themes so the defaults apply", () => {
+    for (const theme of ["nord", "ia", "github", "catppuccin", "rose-pine", "nonsense", 3]) {
+      expect(migrate({ theme, maxWidth: 70 })).toEqual({ maxWidth: 70 });
+      expect(effectiveSettings({ theme })).toMatchObject({ lightTheme: "riso", darkTheme: "klein" });
+    }
+  });
+
+  it("lets explicit new keys win over a legacy theme", () => {
+    expect(migrate({ theme: "paper", lightTheme: "citrus" })).toEqual({ lightTheme: "citrus" });
+  });
+
+  it("returns a current config unchanged", () => {
+    const raw = { lightTheme: "terracotta" };
+    expect(migrate(raw)).toBe(raw);
   });
 });
 
@@ -42,19 +74,21 @@ describe("applyPatch", () => {
     expect(applyPatch({ fontSize: 20 }, { fontSize: 18 })).toEqual({});
   });
 
-  it("writes theme only when it is not paper", () => {
-    expect(applyPatch({}, { theme: "nord" })).toEqual({ theme: "nord" });
-    expect(applyPatch({ theme: "nord" }, { theme: "paper" })).toEqual({});
+  it("writes theme picks only when they differ from Riso and Klein", () => {
+    expect(applyPatch({}, { lightTheme: "citrus" })).toEqual({ lightTheme: "citrus" });
+    expect(applyPatch({ lightTheme: "citrus" }, { lightTheme: "riso" })).toEqual({});
+    expect(applyPatch({}, { darkTheme: "neon-noir" })).toEqual({ darkTheme: "neon-noir" });
   });
 
-  it("never turns the old preset's fonts into overrides when switching theme", () => {
-    const raw = applyPatch({}, { theme: "catppuccin" });
-    expect(raw).toEqual({ theme: "catppuccin" });
-    expect(effectiveSettings(raw).bodyFont).toBe("Inter");
+  it("persists the v1 migration and drops the legacy key on the next write", () => {
+    expect(applyPatch({ theme: "paper" }, { fontSize: 20 })).toEqual({ lightTheme: "paper", darkTheme: "paper", fontSize: 20 });
+    expect(applyPatch({ theme: "nord" }, { fontSize: 20 })).toEqual({ fontSize: 20 });
   });
 
-  it("drops a font override that matches the current preset default", () => {
-    expect(applyPatch({ theme: "nord", bodyFont: "Charter" }, { bodyFont: "Source Serif 4" })).toEqual({ theme: "nord" });
+  it("clears a font override when emptied instead of writing an empty string", () => {
+    expect(applyPatch({ headingFont: "Charter" }, { headingFont: "  " })).toEqual({});
+    expect(applyPatch({ bodyFont: "Charter" }, { bodyFont: null })).toEqual({});
+    expect(applyPatch({}, { codeFont: " Geist Mono " })).toEqual({ codeFont: "Geist Mono" });
   });
 
   it("clamps and rounds numeric values", () => {
@@ -82,6 +116,6 @@ describe("parse and serialize", () => {
   });
 
   it("serializes with two-space indent and a trailing newline", () => {
-    expect(serializeConfig({ theme: "nord" })).toBe('{\n  "theme": "nord"\n}\n');
+    expect(serializeConfig({ lightTheme: "citrus" })).toBe('{\n  "lightTheme": "citrus"\n}\n');
   });
 });

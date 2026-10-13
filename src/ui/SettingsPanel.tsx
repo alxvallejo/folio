@@ -2,17 +2,20 @@ import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { RANGES, type Settings } from "../settings/schema";
 import type { Appearance } from "../themes/apply";
-import { BODY_FONTS, CODE_FONTS } from "../themes/fonts";
-import { PRESET_IDS, PRESETS, type PresetId } from "../themes/presets";
+import { THEMES, themesFor, type ThemeId } from "../themes/catalog";
+import { fontSuggestions } from "../themes/fonts";
 
 interface Props {
   settings: Settings;
+  /** The theme currently shown; its fonts are what an empty font field falls back to. */
+  shownTheme: ThemeId;
   invalid: string | null;
   onChange: (patch: Partial<Settings>) => void;
   onClose: () => void;
 }
 
-export function SettingsPanel({ settings, invalid, onChange, onClose }: Props) {
+export function SettingsPanel({ settings, shownTheme, invalid, onChange, onClose }: Props) {
+  const theme = THEMES[shownTheme];
   return (
     <aside className="settings-panel" aria-label="Settings">
       <header>
@@ -22,16 +25,8 @@ export function SettingsPanel({ settings, invalid, onChange, onClose }: Props) {
         </button>
       </header>
       {invalid && <p className="settings-warning">config.json has invalid JSON, so changes here aren't saved until you fix it. ({invalid})</p>}
-      <label>
-        Theme
-        <select value={settings.theme} onChange={(e) => onChange({ theme: e.target.value as PresetId })}>
-          {PRESET_IDS.map((id) => (
-            <option key={id} value={id}>
-              {PRESETS[id].label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <ThemeSelect label="Light theme" value={settings.lightTheme} options={themesFor("light")} onChange={(lightTheme) => onChange({ lightTheme })} />
+      <ThemeSelect label="Dark theme" value={settings.darkTheme} options={themesFor("dark")} onChange={(darkTheme) => onChange({ darkTheme })} />
       <label>
         Appearance
         <select value={settings.appearance} onChange={(e) => onChange({ appearance: e.target.value as Appearance })}>
@@ -40,29 +35,92 @@ export function SettingsPanel({ settings, invalid, onChange, onClose }: Props) {
           <option value="dark">Dark</option>
         </select>
       </label>
-      <TextField label="Body font" value={settings.bodyFont} suggestions={BODY_FONTS.map((f) => f.label)} onCommit={(bodyFont) => onChange({ bodyFont })} />
-      <TextField label="Code font" value={settings.codeFont} suggestions={CODE_FONTS.map((f) => f.label)} onCommit={(codeFont) => onChange({ codeFont })} />
+      <FontField label="Heading font" value={settings.headingFont} themeDefault={theme.headingFont} suggestions={fontSuggestions("heading")} onCommit={(headingFont) => onChange({ headingFont })} />
+      <FontField label="Body font" value={settings.bodyFont} themeDefault={theme.bodyFont} suggestions={fontSuggestions("body")} onCommit={(bodyFont) => onChange({ bodyFont })} />
+      <FontField label="Code font" value={settings.codeFont} themeDefault={theme.codeFont} suggestions={fontSuggestions("code")} onCommit={(codeFont) => onChange({ codeFont })} />
       <RangeField label="Font size" range={RANGES.fontSize} value={settings.fontSize} format={(v) => `${v}px`} onChange={(fontSize) => onChange({ fontSize })} />
       <RangeField label="Line height" range={RANGES.lineHeight} value={settings.lineHeight} format={(v) => v.toFixed(2)} onChange={(lineHeight) => onChange({ lineHeight })} />
       <RangeField label="Max width" range={RANGES.maxWidth} value={settings.maxWidth} format={(v) => `${v}ch`} onChange={(maxWidth) => onChange({ maxWidth })} />
       <TextField label="Editor command" value={settings.editorCommand} onCommit={(editorCommand) => onChange({ editorCommand })} />
-      <p className="settings-hint">Fonts accept any installed family name. Settings live in ~/.config/folio/config.json, which you can also edit by hand.</p>
+      <p className="settings-hint">Leave a font empty to use the theme's. Fonts accept any installed family name. Settings live in ~/.config/folio/config.json, which you can also edit by hand.</p>
     </aside>
+  );
+}
+
+interface ThemeSelectProps {
+  label: string;
+  value: ThemeId;
+  options: ThemeId[];
+  onChange: (theme: ThemeId) => void;
+}
+
+function ThemeSelect({ label, value, options, onChange }: ThemeSelectProps) {
+  return (
+    <label>
+      {label}
+      <select value={value} onChange={(e) => onChange(e.target.value as ThemeId)}>
+        {options.map((id) => (
+          <option key={id} value={id}>
+            {THEMES[id].label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+interface FontFieldProps {
+  label: string;
+  value: string | null;
+  themeDefault: string;
+  suggestions: string[];
+  onCommit: (value: string | null) => void;
+}
+
+/** A font override. Empty means "use the theme's font". Commits on blur or Enter. */
+function FontField({ label, value, themeDefault, suggestions, onCommit }: FontFieldProps) {
+  const [draft, setDraft] = useState(value ?? "");
+  useEffect(() => setDraft(value ?? ""), [value]);
+  const listId = `${label.toLowerCase().replace(/\s+/g, "-")}-options`;
+  const commit = () => {
+    const next = draft.trim() || null;
+    if (next !== value) onCommit(next);
+    else setDraft(value ?? "");
+  };
+  return (
+    <label>
+      {label}
+      <input
+        type="text"
+        value={draft}
+        placeholder={`Theme default (${themeDefault})`}
+        list={listId}
+        spellCheck={false}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+        }}
+      />
+      <datalist id={listId}>
+        {suggestions.map((s) => (
+          <option key={s} value={s} />
+        ))}
+      </datalist>
+    </label>
   );
 }
 
 interface TextFieldProps {
   label: string;
   value: string;
-  suggestions?: string[];
   onCommit: (value: string) => void;
 }
 
-/** Commits on blur or Enter, so typing a font name doesn't write config.json on every keystroke. */
-function TextField({ label, value, suggestions, onCommit }: TextFieldProps) {
+/** Commits on blur or Enter, so typing doesn't write config.json on every keystroke. */
+function TextField({ label, value, onCommit }: TextFieldProps) {
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
-  const listId = suggestions ? `${label.toLowerCase().replace(/\s+/g, "-")}-options` : undefined;
   const commit = () => {
     const next = draft.trim();
     if (next && next !== value) onCommit(next);
@@ -74,7 +132,6 @@ function TextField({ label, value, suggestions, onCommit }: TextFieldProps) {
       <input
         type="text"
         value={draft}
-        list={listId}
         spellCheck={false}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
@@ -82,13 +139,6 @@ function TextField({ label, value, suggestions, onCommit }: TextFieldProps) {
           if (e.key === "Enter") commit();
         }}
       />
-      {suggestions && (
-        <datalist id={listId}>
-          {suggestions.map((s) => (
-            <option key={s} value={s} />
-          ))}
-        </datalist>
-      )}
     </label>
   );
 }
