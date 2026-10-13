@@ -1,7 +1,17 @@
-# Tauri + React + Typescript
+# Folio
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+A personal macOS app for reading local Markdown files. Read-only: Folio never writes to your documents. Built with Tauri 2 and React/TypeScript.
 
-## Recommended IDE Setup
+## Develop
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+```sh
+npm install
+npm run tauri dev          # run the app
+npm test                   # frontend tests
+cd src-tauri && cargo test # backend tests
+npx tauri build --bundles app
+```
+
+## Config
+
+Settings live in `~/.config/folio/config.json`. It is the only file Folio writes.

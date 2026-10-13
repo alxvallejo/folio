@@ -14,7 +14,7 @@
       { "title": "Folio", "width": 1200, "height": 850, "minWidth": 640, "minHeight": 400 }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost https: http: data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src ipc: http://ipc.localhost",
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost https: http: data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src ipc: http://ipc.localhost; form-action 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'",
       "assetProtocol": {
         "enable": true,
         "scope": { "allow": ["$HOME/**"], "requireLiteralLeadingDot": false }

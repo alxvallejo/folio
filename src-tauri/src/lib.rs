@@ -1,6 +1,7 @@
 mod config;
 mod editor;
 mod fs;
+mod navigation;
 mod open;
 mod watch;
 
@@ -9,6 +10,7 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(navigation::guard())
         .manage(open::PendingOpen::default())
         .manage(watch::Watchers::default())
         .setup(|app| {
