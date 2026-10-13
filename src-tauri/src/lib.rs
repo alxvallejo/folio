@@ -1,3 +1,4 @@
+mod config;
 mod fs;
 mod watch;
 
@@ -10,6 +11,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             fs::read_file,
             fs::list_tree,
+            config::read_config,
+            config::write_config,
+            config::watch_config,
             watch::watch_file,
             watch::watch_folder,
         ])
