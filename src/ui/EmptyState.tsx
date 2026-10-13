@@ -7,7 +7,14 @@ interface Props {
 export function EmptyState({ message, onOpenFile, onOpenFolder }: Props) {
   return (
     <div className="empty-state">
-      <h1>Folio</h1>
+      <h1 className="wordmark" aria-label="Folio">
+        <span className="wordmark-under" aria-hidden="true">
+          folio
+        </span>
+        <span className="wordmark-over" aria-hidden="true">
+          folio
+        </span>
+      </h1>
       <p>{message}</p>
       <div className="empty-actions">
         <button onClick={onOpenFile}>

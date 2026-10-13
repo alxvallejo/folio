@@ -10,20 +10,30 @@
   overflow-wrap: break-word;
 }
 .prose > :first-child { margin-top: 0; }
-.prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 { margin: 1.8em 0 .6em; font-family: var(--font-heading); font-weight: 650; line-height: 1.25; }
-.prose h1 { font-size: 2em; }
-.prose h2 { font-size: 1.45em; padding-bottom: .25em; border-bottom: 1px solid var(--border); }
-.prose h3 { font-size: 1.2em; }
+.prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6 {
+  margin: 1.6em 0 .5em;
+  font-family: var(--font-heading);
+  font-weight: var(--heading-weight);
+  font-style: var(--heading-style);
+  letter-spacing: var(--heading-tracking);
+  line-height: 1.12;
+  color: var(--heading);
+}
+.prose h1 { font-size: 2.4em; }
+.prose h2 { font-size: 1.6em; padding-bottom: .2em; border-bottom: 1px solid var(--border); }
+.prose h3 { font-size: 1.25em; }
 .prose h4 { font-size: 1.05em; }
 .prose h5, .prose h6 { font-size: 1em; color: var(--muted); }
 .prose p, .prose ul, .prose ol, .prose blockquote, .prose pre, .prose table, .prose details, .prose dl { margin: 0 0 1em; }
 .prose ul, .prose ol { padding-left: 1.6em; }
 .prose li + li { margin-top: .25em; }
 .prose li > ul, .prose li > ol { margin: .25em 0 0; }
-.prose a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: .18em; cursor: pointer; }
+.prose a { color: var(--link); text-decoration-color: var(--link-underline); text-decoration-thickness: .08em; text-underline-offset: .18em; cursor: pointer; }
+.prose a:hover { text-decoration-color: currentColor; }
 .prose strong { font-weight: 650; }
 .prose hr { margin: 2em 0; border: 0; border-top: 1px solid var(--border); }
-.prose blockquote { margin-left: 0; padding-left: 1em; border-left: 3px solid var(--border); color: var(--muted); }
+.prose blockquote { margin-left: 0; padding-left: 1em; border-left: 3px solid var(--quote); color: var(--muted); }
+.prose mark { padding: 0 .12em; border-radius: 2px; background: var(--highlight); color: inherit; }
 .prose img { max-width: 100%; height: auto; border-radius: 4px; }
 .prose code, .prose kbd, .prose pre { font-family: var(--font-code); }
 .prose :not(pre) > code { padding: .12em .36em; border-radius: 4px; font-size: .86em; background: color-mix(in srgb, var(--fg) 7%, transparent); }
@@ -49,5 +59,5 @@
 :root[data-appearance="dark"] .prose .shiki span { color: var(--shiki-dark); font-style: var(--shiki-dark-font-style); }
 
 /* Find (CSS Custom Highlight API) */
-::highlight(folio-find) { background-color: color-mix(in srgb, var(--accent) 28%, transparent); }
-::highlight(folio-find-current) { background-color: color-mix(in srgb, var(--accent) 60%, transparent); color: var(--bg); }
+::highlight(folio-find) { background-color: var(--highlight); }
+::highlight(folio-find-current) { background-color: color-mix(in srgb, var(--accent) 60%, transparent); }

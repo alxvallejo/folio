@@ -64,7 +64,10 @@ button { font: inherit; color: inherit; }
 /* Notices */
 .banner { position: sticky; top: 0; z-index: 2; padding: 8px 16px; text-align: center; background: color-mix(in srgb, #d97706 20%, var(--bg)); border-bottom: 1px solid var(--border); }
 .notice, .empty-state { max-width: 440px; margin: 18vh auto 0; padding: 0 24px; text-align: center; }
-.empty-state h1 { margin: 0 0 8px; font-family: var(--font-heading); font-size: 28px; }
+/* "folio" in Fraunces Black, printed in two offset inks like the icon. Fixed brand face; colors follow the theme. */
+.wordmark { position: relative; display: inline-block; margin: 0 0 14px; font-family: "Fraunces Variable", Fraunces, Georgia, serif; font-weight: 900; font-size: 72px; line-height: 1; letter-spacing: -0.02em; }
+.wordmark-under { position: absolute; left: .045em; top: .035em; color: var(--accent); }
+.wordmark-over { position: relative; color: var(--heading); }
 .empty-state p, .notice p { color: var(--muted); }
 .empty-actions, .notice-actions { display: flex; justify-content: center; gap: 8px; margin-top: 16px; }
 .empty-actions button, .notice-actions button { padding: 7px 14px; border: 1px solid var(--border); border-radius: 7px; background: color-mix(in srgb, var(--fg) 4%, var(--bg)); }
