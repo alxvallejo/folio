@@ -88,6 +88,52 @@ describe("settings store", () => {
     expect(listener).not.toHaveBeenCalled();
   });
 
+  it("blocks writes after a failed read so it cannot clobber the real file", async () => {
+    const io = new FakeIO('{"fontSize": 20, "future": true}');
+    io.read = async () => {
+      throw new Error("EIO");
+    };
+    const notify = vi.fn();
+    const store = createSettingsStore(io, notify);
+    await store.load();
+    notify.mockClear();
+    await store.update({ lastFolder: "/x" });
+    await store.update({ fontSize: 22 });
+    expect(io.writes).toEqual([]);
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(store.getState().settings.fontSize).toBe(22);
+  });
+
+  it("waits for the initial load before writing, preserving existing keys", async () => {
+    const io = new FakeIO('{"future": true, "fontSize": 16}');
+    const store = createSettingsStore(io, vi.fn());
+    const loading = store.load();
+    await store.update({ lineHeight: 1.8 });
+    await loading;
+    expect(io.lastWrite()).toEqual({ future: true, fontSize: 16, lineHeight: 1.8 });
+  });
+
+  it("loads on its own when update is called before load", async () => {
+    const io = new FakeIO('{"future": true}');
+    const store = createSettingsStore(io, vi.fn());
+    await store.update({ fontSize: 20 });
+    expect(io.lastWrite()).toEqual({ future: true, fontSize: 20 });
+  });
+
+  it("applies a hand edit that reverts to an earlier written value", async () => {
+    const io = new FakeIO(null);
+    const store = createSettingsStore(io, vi.fn());
+    await store.load();
+    await store.update({ fontSize: 20 }); // A
+    const textA = io.text as string;
+    io.text = '{"fontSize": 22}'; // hand edit B
+    await store.load();
+    expect(store.getState().settings.fontSize).toBe(22);
+    io.text = textA; // hand revert to A
+    await store.load();
+    expect(store.getState().settings.fontSize).toBe(20);
+  });
+
   it("keeps getState stable between changes and notifies subscribers", async () => {
     const store = createSettingsStore(new FakeIO(null), vi.fn());
     const listener = vi.fn();

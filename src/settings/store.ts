@@ -23,7 +23,9 @@ export interface SettingsStore {
 export function createSettingsStore(io: ConfigIO, notify: (message: string) => void): SettingsStore {
   let raw: RawConfig = {};
   let state: SettingsState = { settings: effectiveSettings(raw), invalid: null, loaded: false };
-  let lastWritten: string | null = null;
+  // False after a failed read: raw is then a guess, so writing it could clobber the real file.
+  let lastReadOk = true;
+  let firstLoad: Promise<void> | null = null;
   let warnedUnsaved = false;
   const listeners = new Set<() => void>();
 
@@ -33,16 +35,35 @@ export function createSettingsStore(io: ConfigIO, notify: (message: string) => v
   };
 
   function ingest(source: string | null) {
-    if (source !== null && source === lastWritten && !state.invalid) return; // echo of our own write
     const parsed = source === null ? ({ ok: true, raw: {} } as const) : parseConfig(source);
     if (!parsed.ok) {
       set({ ...state, invalid: parsed.error, loaded: true });
       notify(`config.json has invalid JSON. Keeping the previous settings. (${parsed.error})`);
       return;
     }
-    raw = parsed.raw;
     warnedUnsaved = false;
+    // Same content as we already hold (e.g. the echo of our own write): nothing to apply.
+    if (state.loaded && !state.invalid && serializeConfig(parsed.raw) === serializeConfig(raw)) return;
+    raw = parsed.raw;
     set({ settings: effectiveSettings(raw), invalid: null, loaded: true });
+  }
+
+  async function doLoad() {
+    try {
+      const source = await io.read();
+      lastReadOk = true;
+      ingest(source);
+    } catch (e) {
+      lastReadOk = false;
+      notify(`Couldn't read config.json: ${String(e)}`);
+      if (!state.loaded) set({ ...state, loaded: true });
+    }
+  }
+
+  function load() {
+    const run = doLoad();
+    firstLoad ??= run;
+    return run;
   }
 
   return {
@@ -55,27 +76,25 @@ export function createSettingsStore(io: ConfigIO, notify: (message: string) => v
       };
     },
 
-    async load() {
-      try {
-        ingest(await io.read());
-      } catch (e) {
-        notify(`Couldn't read config.json: ${String(e)}`);
-        if (!state.loaded) set({ ...state, loaded: true });
-      }
-    },
+    load,
 
     async update(patch) {
+      await (firstLoad ?? load());
       raw = applyPatch(raw, patch);
       set({ ...state, settings: effectiveSettings(raw) });
-      if (state.invalid) {
-        if (!warnedUnsaved) notify("config.json has invalid JSON, so changes aren't saved until you fix it.");
+      if (state.invalid || !lastReadOk) {
+        if (!warnedUnsaved) {
+          notify(
+            state.invalid
+              ? "config.json has invalid JSON, so changes aren't saved until you fix it."
+              : "config.json couldn't be read, so changes aren't saved until it can be.",
+          );
+        }
         warnedUnsaved = true;
         return;
       }
-      const textToWrite = serializeConfig(raw);
-      lastWritten = textToWrite;
       try {
-        await io.write(textToWrite);
+        await io.write(serializeConfig(raw));
       } catch (e) {
         notify(`Couldn't save config.json: ${String(e)}`);
       }
