@@ -54,6 +54,14 @@ describe("automatic check", () => {
     expect(deps.notify).not.toHaveBeenCalled();
   });
 
+  it("doesn't bring back a banner dismissed with Later", async () => {
+    const { updater } = setup(async () => fakeUpdate());
+    await updater.checkManually();
+    updater.dismiss();
+    await updater.checkAutomatically();
+    expect(updater.getState()).toEqual({ kind: "dismissed" });
+  });
+
   it("is silent when there is no update or the check fails", async () => {
     const none = setup(async () => null);
     await none.updater.checkAutomatically();

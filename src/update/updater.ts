@@ -81,7 +81,8 @@ export function createUpdater(deps: UpdaterDeps): Updater {
   }
 
   async function checkAutomatically() {
-    if (busy()) return;
+    // Later hides the banner until the next launch; only the menu item brings it back.
+    if (busy() || state.kind === "dismissed") return;
     try {
       const update = await deps.check();
       if (update) offer(update);
