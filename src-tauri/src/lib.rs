@@ -1,8 +1,10 @@
 mod config;
 mod editor;
 mod fs;
+mod menu;
 mod navigation;
 mod open;
+mod relaunch;
 mod watch;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -14,6 +16,8 @@ pub fn run() {
         .plugin(navigation::guard())
         .manage(open::PendingOpen::default())
         .manage(watch::Watchers::default())
+        .menu(menu::build)
+        .on_menu_event(menu::on_event)
         .setup(|app| {
             open::deliver(app.handle(), open::paths_from_args(std::env::args().skip(1)));
             Ok(())
@@ -28,6 +32,7 @@ pub fn run() {
             config::watch_config,
             open::frontend_ready,
             editor::open_in_editor,
+            relaunch::relaunch,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Folio");
