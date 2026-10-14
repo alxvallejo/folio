@@ -32,6 +32,7 @@ else
   git fetch --quiet origin master
   [[ $(git rev-parse master) == $(git rev-parse origin/master) ]] || die "master doesn't match origin/master; push or pull first"
   command -v gh >/dev/null || die "the GitHub CLI (gh) isn't installed"
+  gh auth status >/dev/null 2>&1 || die "gh isn't logged in; run gh auth login"
 fi
 [[ -z $(git status --porcelain) ]] || die "the working tree isn't clean"
 node scripts/release/version.mjs check "$VERSION" || exit 1
@@ -89,8 +90,11 @@ git add "${BUMPED[@]}"
 git commit -m "Release $VERSION"
 git tag "v$VERSION"
 COMMITTED=true
-git push origin master "v$VERSION"
+PUBLISH="gh release create v$VERSION --title \"Folio $VERSION\" --notes-file $OUT/release-notes.md --latest $OUT/*.dmg $OUT/Folio.app.tar.gz $OUT/latest.json"
+# Atomic, so a rejected master never leaves a pushed tag pointing off master.
+git push --atomic origin master "v$VERSION" ||
+  die "Release $VERSION is committed and tagged here but not pushed. Fix the cause, then run: git push --atomic origin master v$VERSION && $PUBLISH"
 gh release create "v$VERSION" --title "Folio $VERSION" --notes-file "$OUT/release-notes.md" --latest \
   "$OUT/Folio_${VERSION}_aarch64.dmg" "$OUT/Folio_aarch64.dmg" "$OUT/Folio.app.tar.gz" "$OUT/latest.json" ||
-  die "the tag is pushed but the release wasn't created. Retry with: gh release create v$VERSION --title \"Folio $VERSION\" --notes-file $OUT/release-notes.md --latest $OUT/*.dmg $OUT/Folio.app.tar.gz $OUT/latest.json"
+  die "the tag is pushed but the release wasn't created. Retry with: $PUBLISH"
 echo "Published: https://github.com/alxvallejo/folio/releases/tag/v$VERSION"
