@@ -31,6 +31,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "macOS": { "minimumSystemVersion": "12.0" },
     "fileAssociations": [
       { "ext": ["md", "markdown"], "contentTypes": ["net.daringfireball.markdown"], "name": "Markdown Document", "role": "Viewer", "mimeType": "text/markdown" }
     ]
