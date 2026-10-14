@@ -1,7 +1,9 @@
+import { getVersion } from "@tauri-apps/api/app";
 import { homeDir } from "@tauri-apps/api/path";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { check } from "@tauri-apps/plugin-updater";
 import { type ReactNode, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { api, events } from "../lib/api";
 import { abbreviateHome, basename, expandHome } from "../lib/paths";
@@ -10,6 +12,7 @@ import { shikiThemeName } from "../render/shikiThemes";
 import { createSettingsStore } from "../settings/store";
 import { activeTheme, applyTheme, resolveAppearance } from "../themes/apply";
 import { themesFor } from "../themes/catalog";
+import { createUpdater, releaseNotesUrl } from "../update/updater";
 import { DocumentView, LargeFilePrompt } from "./DocumentView";
 import { EmptyState } from "./EmptyState";
 import { FindBar } from "./FindBar";
@@ -20,6 +23,7 @@ import { Sidebar } from "./Sidebar";
 import { MIN_TOC_HEADINGS, Toc } from "./Toc";
 import { Toasts, useToasts } from "./Toasts";
 import { Toolbar } from "./Toolbar";
+import { UpdateBanner } from "./UpdateBanner";
 import { useDocument } from "./useDocument";
 import { useFolder } from "./useFolder";
 import { useRenderer } from "./useRenderer";
@@ -62,6 +66,22 @@ export function App() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [fragment, setFragment] = useState<string | null>(null);
   const clearFragment = useCallback(() => setFragment(null), []);
+
+  // Updates
+  const updater = useMemo(
+    () => createUpdater({ check: () => check({ timeout: 30_000 }), currentVersion: getVersion, relaunch: api.relaunch, notify }),
+    [notify],
+  );
+  const updateState = useSyncExternalStore(updater.subscribe, updater.getState);
+  // Once per launch, 30 s after settings load. Turning the setting off before then cancels it.
+  useEffect(() => {
+    if (!loaded || !settings.autoUpdateCheck) return;
+    return updater.scheduleAutomaticCheck();
+  }, [loaded, settings.autoUpdateCheck, updater]);
+  useEffect(() => {
+    const unlisten = events.onMenuCheckForUpdates(() => void updater.checkManually());
+    return () => void unlisten.then((stop) => stop());
+  }, [updater]);
 
   // Panels
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -268,6 +288,12 @@ export function App() {
           onSettings={() => setSettingsOpen((open) => !open)}
         />
         {findOpen && doc.rendered && <FindBar scrollRef={scrollRef} html={doc.rendered.html} focusSignal={findFocus} onClose={closeFind} />}
+        <UpdateBanner
+          state={updateState}
+          onWhatsNew={(version) => openUrl(releaseNotesUrl(version)).catch((e) => notify(`Couldn't open link: ${String(e)}`))}
+          onLater={updater.dismiss}
+          onInstall={() => void updater.install(doc.path)}
+        />
         <div className="doc-scroll" ref={scrollRef}>
           {body}
         </div>

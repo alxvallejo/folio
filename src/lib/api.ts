@@ -28,6 +28,8 @@ export const api = {
   watchConfig: () => invoke<void>("watch_config"),
   frontendReady: () => invoke<string[]>("frontend_ready"),
   openInEditor: (path: string, command: string) => invoke<void>("open_in_editor", { path, command }),
+  /** Starts the installed version on `path` and quits Folio. */
+  relaunch: (path: string | null) => invoke<void>("relaunch", { path }),
 };
 
 const on =
@@ -44,4 +46,6 @@ export const events = {
   onConfigChanged: on<null>("config-changed"),
   /** Payload: absolute path the OS asked Folio to open. */
   onOpenPath: on<string>("open-path"),
+  /** Folio → Check for Updates… */
+  onMenuCheckForUpdates: on<null>("menu-check-for-updates"),
 };

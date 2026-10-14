@@ -48,6 +48,8 @@ mockIPC(
         return [DOC];
       case "plugin:path|resolve_directory":
         return HOME;
+      case "plugin:updater|check":
+        return null;
       default:
         return null;
     }
