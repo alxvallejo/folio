@@ -8,6 +8,7 @@ import { type ReactNode, useCallback, useEffect, useEffectEvent, useLayoutEffect
 import { ASK_DELAY_MS, askOnFirstLaunch } from "../defaultApp/defaultApp";
 import { api, events, type DefaultApp } from "../lib/api";
 import { abbreviateHome, basename, expandHome } from "../lib/paths";
+import { sentence } from "../lib/text";
 import { DEFAULT_FONT_SIZE } from "../settings/schema";
 import { shikiThemeName } from "../render/shikiThemes";
 import { createSettingsStore } from "../settings/store";
@@ -114,7 +115,7 @@ export function App() {
     if (settingsOpen) refreshDefaultApp();
   }, [settingsOpen, refreshDefaultApp]);
   const makeDefaultApp = useCallback(() => {
-    api.makeDefaultMarkdownApp().then(refreshDefaultApp, (e) => notify(`Couldn't make Folio the default: ${String(e)}.`));
+    api.makeDefaultMarkdownApp().then(refreshDefaultApp, (e) => notify(sentence(`Couldn't make Folio the default: ${String(e)}`)));
   }, [refreshDefaultApp, notify]);
   const hasDocument = doc.rendered !== null && !doc.isEmpty && !doc.pendingLarge;
 

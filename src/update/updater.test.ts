@@ -135,6 +135,14 @@ describe("manual check", () => {
     expect(deps.notify).toHaveBeenCalledWith("Couldn't check for updates: error sending request.");
   });
 
+  it("doesn't double the period when the reason already ends with one", async () => {
+    const { updater, deps } = setup(async () => {
+      throw new Error("The network connection was lost.");
+    });
+    await updater.checkManually();
+    expect(deps.notify).toHaveBeenCalledWith("Couldn't check for updates: The network connection was lost.");
+  });
+
   it("brings back a banner dismissed with Later", async () => {
     const { updater } = setup(async () => fakeUpdate());
     await updater.checkAutomatically();

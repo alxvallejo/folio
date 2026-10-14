@@ -1,4 +1,5 @@
 import type { DownloadEvent } from "@tauri-apps/plugin-updater";
+import { sentence } from "../lib/text";
 
 export const AUTO_CHECK_DELAY_MS = 30_000;
 
@@ -98,7 +99,7 @@ export function createUpdater(deps: UpdaterDeps): Updater {
     try {
       [update, installed] = await Promise.all([deps.check(), deps.currentVersion()]);
     } catch (e) {
-      if (!busy()) deps.notify(`Couldn't check for updates: ${reason(e)}.`);
+      if (!busy()) deps.notify(sentence(`Couldn't check for updates: ${reason(e)}`));
       return;
     }
     if (update) offer(update);
