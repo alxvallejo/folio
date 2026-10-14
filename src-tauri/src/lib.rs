@@ -1,4 +1,5 @@
 mod config;
+mod default_app;
 mod editor;
 mod fs;
 mod menu;
@@ -30,6 +31,8 @@ pub fn run() {
             config::read_config,
             config::write_config,
             config::watch_config,
+            default_app::default_markdown_app,
+            default_app::make_default_markdown_app,
             open::frontend_ready,
             editor::open_in_editor,
             relaunch::relaunch,
