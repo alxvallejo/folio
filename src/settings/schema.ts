@@ -16,6 +16,8 @@ export interface Settings {
   lastFolder: string | null;
   /** Check GitHub for a new Folio 30 seconds after launch. */
   autoUpdateCheck: boolean;
+  /** Set once Folio has asked macOS to make it the default Markdown app; never shown in Settings. */
+  defaultAppAsked: boolean;
 }
 
 export type RawConfig = Record<string, unknown>;
@@ -41,6 +43,7 @@ export const DEFAULTS: Settings = {
   editorCommand: "code",
   lastFolder: null,
   autoUpdateCheck: true,
+  defaultAppAsked: false,
 };
 
 export const DEFAULT_FONT_SIZE = DEFAULTS.fontSize;
@@ -95,6 +98,7 @@ export function effectiveSettings(input: RawConfig): Settings {
     editorCommand: text(raw.editorCommand) ?? DEFAULTS.editorCommand,
     lastFolder: text(raw.lastFolder),
     autoUpdateCheck: typeof raw.autoUpdateCheck === "boolean" ? raw.autoUpdateCheck : DEFAULTS.autoUpdateCheck,
+    defaultAppAsked: typeof raw.defaultAppAsked === "boolean" ? raw.defaultAppAsked : DEFAULTS.defaultAppAsked,
   };
 }
 

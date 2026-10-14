@@ -16,6 +16,7 @@ describe("effectiveSettings", () => {
       editorCommand: "code",
       lastFolder: null,
       autoUpdateCheck: true,
+      defaultAppAsked: false,
     });
     expect(effectiveSettings({})).toEqual(DEFAULTS);
   });
@@ -48,7 +49,7 @@ describe("effectiveSettings", () => {
   });
 
   it("ignores values of the wrong type", () => {
-    expect(effectiveSettings({ appearance: "dim", fontSize: "20", bodyFont: "  ", headingFont: 3, lastFolder: 7, autoUpdateCheck: "no" })).toEqual(DEFAULTS);
+    expect(effectiveSettings({ appearance: "dim", fontSize: "20", bodyFont: "  ", headingFont: 3, lastFolder: 7, autoUpdateCheck: "no", defaultAppAsked: "yes" })).toEqual(DEFAULTS);
   });
 });
 
@@ -105,6 +106,12 @@ describe("applyPatch", () => {
   it("writes autoUpdateCheck only when it is turned off", () => {
     expect(applyPatch({}, { autoUpdateCheck: false })).toEqual({ autoUpdateCheck: false });
     expect(applyPatch({ autoUpdateCheck: false }, { autoUpdateCheck: true })).toEqual({});
+  });
+
+  it("writes defaultAppAsked only once it is true", () => {
+    expect(applyPatch({}, { defaultAppAsked: true })).toEqual({ defaultAppAsked: true });
+    expect(applyPatch({ defaultAppAsked: true }, { defaultAppAsked: false })).toEqual({});
+    expect(effectiveSettings({ defaultAppAsked: true }).defaultAppAsked).toBe(true);
   });
 
   it("preserves unknown keys", () => {

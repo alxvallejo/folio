@@ -5,7 +5,8 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { check } from "@tauri-apps/plugin-updater";
 import { type ReactNode, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { api, events } from "../lib/api";
+import { ASK_DELAY_MS, askOnFirstLaunch } from "../defaultApp/defaultApp";
+import { api, events, type DefaultApp } from "../lib/api";
 import { abbreviateHome, basename, expandHome } from "../lib/paths";
 import { DEFAULT_FONT_SIZE } from "../settings/schema";
 import { shikiThemeName } from "../render/shikiThemes";
@@ -83,6 +84,21 @@ export function App() {
     return () => void unlisten.then((stop) => stop());
   }, [updater]);
 
+  // Default Markdown app: the one-time ask, 2 s after settings load, and the Settings row.
+  const askScheduled = useRef(false);
+  useEffect(() => {
+    if (askScheduled.current || !loaded) return;
+    askScheduled.current = true;
+    const asked = settings.defaultAppAsked;
+    window.setTimeout(() => {
+      void askOnFirstLaunch(asked, {
+        status: api.defaultMarkdownApp,
+        make: api.makeDefaultMarkdownApp,
+        markAsked: () => store.update({ defaultAppAsked: true }),
+      });
+    }, ASK_DELAY_MS);
+  }, [loaded, settings.defaultAppAsked, store]);
+
   // Panels
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [tocOpen, setTocOpen] = useState(true);
@@ -90,6 +106,16 @@ export function App() {
   const [findFocus, setFindFocus] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const closeFind = useCallback(() => setFindOpen(false), []);
+  const [defaultApp, setDefaultApp] = useState<DefaultApp | null>(null);
+  const refreshDefaultApp = useCallback(() => {
+    api.defaultMarkdownApp().then(setDefaultApp, () => setDefaultApp(null));
+  }, []);
+  useEffect(() => {
+    if (settingsOpen) refreshDefaultApp();
+  }, [settingsOpen, refreshDefaultApp]);
+  const makeDefaultApp = useCallback(() => {
+    api.makeDefaultMarkdownApp().then(refreshDefaultApp, (e) => notify(`Couldn't make Folio the default: ${String(e)}.`));
+  }, [refreshDefaultApp, notify]);
   const hasDocument = doc.rendered !== null && !doc.isEmpty && !doc.pendingLarge;
 
   const openFile = useCallback(
@@ -297,7 +323,17 @@ export function App() {
         <div className="doc-scroll" ref={scrollRef}>
           {body}
         </div>
-        {settingsOpen && <SettingsPanel settings={settings} shownTheme={shownTheme} invalid={invalid} onChange={updateSettings} onClose={() => setSettingsOpen(false)} />}
+        {settingsOpen && (
+          <SettingsPanel
+            settings={settings}
+            shownTheme={shownTheme}
+            invalid={invalid}
+            defaultApp={defaultApp}
+            onMakeDefault={makeDefaultApp}
+            onChange={updateSettings}
+            onClose={() => setSettingsOpen(false)}
+          />
+        )}
       </main>
       {showToc && doc.rendered && <Toc headings={headings} html={doc.rendered.html} scrollRef={scrollRef} />}
       <Toasts toasts={toasts} onDismiss={dismiss} />
