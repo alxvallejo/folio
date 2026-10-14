@@ -18,6 +18,14 @@ export interface Tree {
   truncated: boolean;
 }
 
+export interface DefaultApp {
+  /** The app that opens Markdown files, e.g. "Warp"; null when there is none. */
+  name: string | null;
+  isFolio: boolean;
+  /** False when Folio runs from the DMG, a translocated copy or a dev build. */
+  canSet: boolean;
+}
+
 export const api = {
   readFile: (path: string) => invoke<FileContents>("read_file", { path }),
   listTree: (root: string) => invoke<Tree>("list_tree", { root }),
@@ -28,6 +36,11 @@ export const api = {
   watchConfig: () => invoke<void>("watch_config"),
   frontendReady: () => invoke<string[]>("frontend_ready"),
   openInEditor: (path: string, command: string) => invoke<void>("open_in_editor", { path, command }),
+  /** Starts the installed version on `path` and quits Folio. */
+  relaunch: (path: string | null) => invoke<void>("relaunch", { path }),
+  defaultMarkdownApp: () => invoke<DefaultApp>("default_markdown_app"),
+  /** Shows the macOS confirmation dialog; resolves when the user answers. */
+  makeDefaultMarkdownApp: () => invoke<"made" | "declined">("make_default_markdown_app"),
 };
 
 const on =
@@ -44,4 +57,6 @@ export const events = {
   onConfigChanged: on<null>("config-changed"),
   /** Payload: absolute path the OS asked Folio to open. */
   onOpenPath: on<string>("open-path"),
+  /** Folio → Check for Updates… */
+  onMenuCheckForUpdates: on<null>("menu-check-for-updates"),
 };

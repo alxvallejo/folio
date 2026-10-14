@@ -10,6 +10,8 @@ A personal macOS app for reading local Markdown files. Read-only: Folio never wr
 
 Download the DMG from the [latest release](https://github.com/alxvallejo/folio/releases) (Apple Silicon). The app isn't signed by Apple yet, so the release notes explain how to open it the first time.
 
+From 0.3.0 on, Folio checks for updates on its own and offers to install them; **Folio → Check for Updates…** checks right away. Turn the automatic check off in Settings.
+
 ## Themes
 
 Folio switches with macOS appearance. Pick a light theme and a dark theme separately in Settings (⌘,); each theme brings its own heading, body and code fonts.
@@ -46,6 +48,17 @@ npx tauri build --bundles app
 ### Screenshots
 
 `npm run screenshots` regenerates everything in `docs/screenshots/`. It renders the real frontend in WebKit against mocked Tauri commands and a sample document (`scripts/screenshots/`). The first run needs `npx playwright install webkit`.
+
+### Releasing
+
+Releases are signed for the updater with a key made once by `scripts/setup-updater-key.sh` (it lives in `~/.tauri/folio-updater.key`, with its password in the login Keychain). Then:
+
+```sh
+scripts/release.sh 0.3.1 notes.md --dry-run   # build and stage only
+scripts/release.sh 0.3.1 notes.md             # bump, build, tag, push and publish
+```
+
+The script checks that you're on a clean, pushed `master` and that the tests pass, and asks before it publishes.
 
 ## Config
 

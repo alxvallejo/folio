@@ -31,8 +31,15 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "macOS": { "minimumSystemVersion": "12.0" },
     "fileAssociations": [
-      { "ext": ["md", "markdown"], "name": "Markdown Document", "role": "Viewer", "mimeType": "text/markdown" }
+      { "ext": ["md", "markdown"], "contentTypes": ["net.daringfireball.markdown"], "name": "Markdown Document", "role": "Viewer", "mimeType": "text/markdown" }
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDUwRTNGMjI0MjVEQUExMDYKUldRR29kb2xKUExqVU1IZHB5UmNPWGdzTU55WUwxQk9IVFpXeHZGeXhmb3BDSTdHUnpjcWcwS1gK",
+      "endpoints": ["https://github.com/alxvallejo/folio/releases/latest/download/latest.json"]
+    }
   }
 }

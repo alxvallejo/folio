@@ -1,15 +1,19 @@
+import { getVersion } from "@tauri-apps/api/app";
 import { homeDir } from "@tauri-apps/api/path";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { check } from "@tauri-apps/plugin-updater";
 import { type ReactNode, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { api, events } from "../lib/api";
+import { ASK_DELAY_MS, askOnFirstLaunch } from "../defaultApp/defaultApp";
+import { api, events, type DefaultApp } from "../lib/api";
 import { abbreviateHome, basename, expandHome } from "../lib/paths";
 import { DEFAULT_FONT_SIZE } from "../settings/schema";
 import { shikiThemeName } from "../render/shikiThemes";
 import { createSettingsStore } from "../settings/store";
 import { activeTheme, applyTheme, resolveAppearance } from "../themes/apply";
 import { themesFor } from "../themes/catalog";
+import { createUpdater, releaseNotesUrl } from "../update/updater";
 import { DocumentView, LargeFilePrompt } from "./DocumentView";
 import { EmptyState } from "./EmptyState";
 import { FindBar } from "./FindBar";
@@ -20,6 +24,7 @@ import { Sidebar } from "./Sidebar";
 import { MIN_TOC_HEADINGS, Toc } from "./Toc";
 import { Toasts, useToasts } from "./Toasts";
 import { Toolbar } from "./Toolbar";
+import { UpdateBanner } from "./UpdateBanner";
 import { useDocument } from "./useDocument";
 import { useFolder } from "./useFolder";
 import { useRenderer } from "./useRenderer";
@@ -63,6 +68,37 @@ export function App() {
   const [fragment, setFragment] = useState<string | null>(null);
   const clearFragment = useCallback(() => setFragment(null), []);
 
+  // Updates
+  const updater = useMemo(
+    () => createUpdater({ check: () => check({ timeout: 30_000 }), currentVersion: getVersion, relaunch: api.relaunch, notify }),
+    [notify],
+  );
+  const updateState = useSyncExternalStore(updater.subscribe, updater.getState);
+  // Once per launch, 30 s after settings load. Turning the setting off before then cancels it.
+  useEffect(() => {
+    if (!loaded || !settings.autoUpdateCheck) return;
+    return updater.scheduleAutomaticCheck();
+  }, [loaded, settings.autoUpdateCheck, updater]);
+  useEffect(() => {
+    const unlisten = events.onMenuCheckForUpdates(() => void updater.checkManually());
+    return () => void unlisten.then((stop) => stop());
+  }, [updater]);
+
+  // Default Markdown app: the one-time ask, 2 s after settings load, and the Settings row.
+  const askScheduled = useRef(false);
+  useEffect(() => {
+    if (askScheduled.current || !loaded) return;
+    askScheduled.current = true;
+    const asked = settings.defaultAppAsked;
+    window.setTimeout(() => {
+      void askOnFirstLaunch(asked, {
+        status: api.defaultMarkdownApp,
+        make: api.makeDefaultMarkdownApp,
+        markAsked: () => store.update({ defaultAppAsked: true }),
+      });
+    }, ASK_DELAY_MS);
+  }, [loaded, settings.defaultAppAsked, store]);
+
   // Panels
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [tocOpen, setTocOpen] = useState(true);
@@ -70,6 +106,16 @@ export function App() {
   const [findFocus, setFindFocus] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const closeFind = useCallback(() => setFindOpen(false), []);
+  const [defaultApp, setDefaultApp] = useState<DefaultApp | null>(null);
+  const refreshDefaultApp = useCallback(() => {
+    api.defaultMarkdownApp().then(setDefaultApp, () => setDefaultApp(null));
+  }, []);
+  useEffect(() => {
+    if (settingsOpen) refreshDefaultApp();
+  }, [settingsOpen, refreshDefaultApp]);
+  const makeDefaultApp = useCallback(() => {
+    api.makeDefaultMarkdownApp().then(refreshDefaultApp, (e) => notify(`Couldn't make Folio the default: ${String(e)}.`));
+  }, [refreshDefaultApp, notify]);
   const hasDocument = doc.rendered !== null && !doc.isEmpty && !doc.pendingLarge;
 
   const openFile = useCallback(
@@ -268,10 +314,26 @@ export function App() {
           onSettings={() => setSettingsOpen((open) => !open)}
         />
         {findOpen && doc.rendered && <FindBar scrollRef={scrollRef} html={doc.rendered.html} focusSignal={findFocus} onClose={closeFind} />}
+        <UpdateBanner
+          state={updateState}
+          onWhatsNew={(version) => openUrl(releaseNotesUrl(version)).catch((e) => notify(`Couldn't open link: ${String(e)}`))}
+          onLater={updater.dismiss}
+          onInstall={() => void updater.install(doc.path)}
+        />
         <div className="doc-scroll" ref={scrollRef}>
           {body}
         </div>
-        {settingsOpen && <SettingsPanel settings={settings} shownTheme={shownTheme} invalid={invalid} onChange={updateSettings} onClose={() => setSettingsOpen(false)} />}
+        {settingsOpen && (
+          <SettingsPanel
+            settings={settings}
+            shownTheme={shownTheme}
+            invalid={invalid}
+            defaultApp={defaultApp}
+            onMakeDefault={makeDefaultApp}
+            onChange={updateSettings}
+            onClose={() => setSettingsOpen(false)}
+          />
+        )}
       </main>
       {showToc && doc.rendered && <Toc headings={headings} html={doc.rendered.html} scrollRef={scrollRef} />}
       <Toasts toasts={toasts} onDismiss={dismiss} />

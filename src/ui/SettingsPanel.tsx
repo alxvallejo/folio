@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
+import type { DefaultApp } from "../lib/api";
 import { RANGES, type Settings } from "../settings/schema";
 import type { Appearance } from "../themes/apply";
 import { THEMES, themesFor, type ThemeId } from "../themes/catalog";
@@ -10,11 +11,14 @@ interface Props {
   /** The theme currently shown; its fonts are what an empty font field falls back to. */
   shownTheme: ThemeId;
   invalid: string | null;
+  /** null until known, or when it can't be read; the row is hidden then. */
+  defaultApp: DefaultApp | null;
+  onMakeDefault: () => void;
   onChange: (patch: Partial<Settings>) => void;
   onClose: () => void;
 }
 
-export function SettingsPanel({ settings, shownTheme, invalid, onChange, onClose }: Props) {
+export function SettingsPanel({ settings, shownTheme, invalid, defaultApp, onMakeDefault, onChange, onClose }: Props) {
   const theme = THEMES[shownTheme];
   return (
     <aside className="settings-panel" aria-label="Settings">
@@ -42,6 +46,11 @@ export function SettingsPanel({ settings, shownTheme, invalid, onChange, onClose
       <RangeField label="Line height" range={RANGES.lineHeight} value={settings.lineHeight} format={(v) => v.toFixed(2)} onChange={(lineHeight) => onChange({ lineHeight })} />
       <RangeField label="Max width" range={RANGES.maxWidth} value={settings.maxWidth} format={(v) => `${v}ch`} onChange={(maxWidth) => onChange({ maxWidth })} />
       <TextField label="Editor command" value={settings.editorCommand} onCommit={(editorCommand) => onChange({ editorCommand })} />
+      <label className="settings-check">
+        <input type="checkbox" checked={settings.autoUpdateCheck} onChange={(e) => onChange({ autoUpdateCheck: e.target.checked })} />
+        Check for updates automatically
+      </label>
+      <DefaultAppRow status={defaultApp} onMakeDefault={onMakeDefault} />
       <p className="settings-hint">Leave a font empty to use the theme's. Fonts accept any installed family name. Settings live in ~/.config/folio/config.json, which you can also edit by hand.</p>
     </aside>
   );
@@ -159,5 +168,24 @@ function RangeField({ label, range, value, format, onChange }: RangeFieldProps) 
       </span>
       <input type="range" min={range.min} max={range.max} step={range.step} value={value} onChange={(e) => onChange(Number(e.target.value))} />
     </label>
+  );
+}
+
+function DefaultAppRow({ status, onMakeDefault }: { status: DefaultApp | null; onMakeDefault: () => void }) {
+  if (!status) return null;
+  return (
+    <div className="settings-default-app">
+      <span>
+        Default Markdown app: <strong>{status.isFolio ? "Folio" : (status.name ?? "None")}</strong>
+      </span>
+      {!status.isFolio &&
+        (status.canSet ? (
+          <button className="settings-button" onClick={onMakeDefault}>
+            Make Folio Default
+          </button>
+        ) : (
+          <span className="settings-hint">Move Folio to Applications to make it the default.</span>
+        ))}
+    </div>
   );
 }

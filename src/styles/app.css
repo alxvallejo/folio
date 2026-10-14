@@ -57,12 +57,23 @@ button { font: inherit; color: inherit; }
 .settings-panel label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); }
 .settings-panel input[type="text"], .settings-panel select { font: inherit; color: var(--fg); background: color-mix(in srgb, var(--fg) 5%, var(--bg)); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; }
 .settings-panel input[type="range"] { accent-color: var(--accent); }
+.settings-panel label.settings-check { flex-direction: row; align-items: center; gap: 8px; color: var(--fg); }
+.settings-panel input[type="checkbox"] { margin: 0; accent-color: var(--accent); }
+.settings-default-app { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; color: var(--muted); }
+.settings-default-app strong { color: var(--fg); font-weight: 600; }
+.settings-button { padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: color-mix(in srgb, var(--fg) 4%, var(--bg)); color: var(--fg); }
+.settings-button:hover { border-color: var(--accent); }
 .settings-value { color: var(--fg); font-variant-numeric: tabular-nums; }
 .settings-warning { margin: 0; padding: 8px 10px; border-radius: 6px; background: color-mix(in srgb, #d97706 18%, var(--bg)); }
 .settings-hint { margin: 0; font-size: 12px; color: var(--muted); }
 
 /* Notices */
 .banner { position: sticky; top: 0; z-index: 2; padding: 8px 16px; text-align: center; background: color-mix(in srgb, #d97706 20%, var(--bg)); border-bottom: 1px solid var(--border); }
+.update-banner { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--accent) 10%, var(--bg)); }
+.update-message { flex: 1; min-width: 0; }
+.update-banner button { padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
+.update-banner button:hover { border-color: var(--accent); }
+.update-banner button.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .notice, .empty-state { max-width: 440px; margin: 18vh auto 0; padding: 0 24px; text-align: center; }
 /* "folio" in Fraunces Black, printed in two offset inks like the icon. Fixed brand face; colors follow the theme. */
 .wordmark { position: relative; display: inline-block; margin: 0 0 14px; font-family: "Fraunces Variable", Fraunces, Georgia, serif; font-weight: 900; font-size: 72px; line-height: 1; letter-spacing: -0.02em; }

@@ -15,7 +15,7 @@ export default defineConfig(() => ({
   // 2. tauri expects a fixed port, fail if that port is not available
   test: {
     environment: "jsdom",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "scripts/**/*.test.mjs"],
   },
   server: {
     port: 1420,

@@ -48,6 +48,10 @@ mockIPC(
         return [DOC];
       case "plugin:path|resolve_directory":
         return HOME;
+      case "default_markdown_app":
+        return { name: "Folio", isFolio: true, canSet: true };
+      case "plugin:updater|check":
+        return null;
       default:
         return null;
     }
