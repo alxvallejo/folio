@@ -38,6 +38,8 @@ export const api = {
   openInEditor: (path: string, command: string) => invoke<void>("open_in_editor", { path, command }),
   /** Starts the installed version on `path` and quits Folio. */
   relaunch: (path: string | null) => invoke<void>("relaunch", { path }),
+  /** False when running from the DMG, a translocated copy or a dev build. */
+  isInstalled: () => invoke<boolean>("is_installed"),
   defaultMarkdownApp: () => invoke<DefaultApp>("default_markdown_app"),
   /** Shows the macOS confirmation dialog; resolves when the user answers. */
   makeDefaultMarkdownApp: () => invoke<"made" | "declined">("make_default_markdown_app"),

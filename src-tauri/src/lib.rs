@@ -33,6 +33,7 @@ pub fn run() {
             config::watch_config,
             default_app::default_markdown_app,
             default_app::make_default_markdown_app,
+            default_app::is_installed,
             open::frontend_ready,
             editor::open_in_editor,
             relaunch::relaunch,

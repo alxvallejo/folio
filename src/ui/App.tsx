@@ -71,7 +71,7 @@ export function App() {
 
   // Updates
   const updater = useMemo(
-    () => createUpdater({ check: () => check({ timeout: 30_000 }), currentVersion: getVersion, relaunch: api.relaunch, notify }),
+    () => createUpdater({ check: () => check({ timeout: 30_000 }), canInstall: api.isInstalled, currentVersion: getVersion, relaunch: api.relaunch, notify }),
     [notify],
   );
   const updateState = useSyncExternalStore(updater.subscribe, updater.getState);

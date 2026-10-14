@@ -22,6 +22,8 @@ export interface PendingUpdate {
 export interface UpdaterDeps {
   /** Resolves to null when Folio is up to date. */
   check(): Promise<PendingUpdate | null>;
+  /** False when Folio runs from the DMG, a translocated copy or a dev build, where an install can only fail. */
+  canInstall(): Promise<boolean>;
   currentVersion(): Promise<string>;
   /** Starts the installed version on `path` and quits; only resolves if it fails to quit. */
   relaunch(path: string | null): Promise<void>;
@@ -85,6 +87,7 @@ export function createUpdater(deps: UpdaterDeps): Updater {
     // Later hides the banner until the next launch; only the menu item brings it back.
     if (busy() || state.kind === "dismissed") return;
     try {
+      if (!(await deps.canInstall())) return;
       const update = await deps.check();
       if (update) offer(update);
     } catch {
