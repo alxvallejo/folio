@@ -4,6 +4,35 @@
 
 A personal macOS app for reading local Markdown files. Read-only: Folio never writes to your documents. Built with Tauri 2 and React/TypeScript.
 
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/klein.png"><img src="docs/screenshots/riso.png" alt="Folio showing a Markdown document in the Riso theme, with a folder sidebar and a table of contents"></picture>
+
+## Install
+
+Download the DMG from the [latest release](https://github.com/alxvallejo/folio/releases) (Apple Silicon). The app isn't signed by Apple yet, so the release notes explain how to open it the first time.
+
+## Themes
+
+Folio switches with macOS appearance. Pick a light theme and a dark theme separately in Settings (⌘,); each theme brings its own heading, body and code fonts.
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/riso.png" alt="Riso theme"><br><b>Riso</b> · light, default</td>
+    <td><img src="docs/screenshots/klein.png" alt="Klein theme"><br><b>Klein</b> · dark, default</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/paper.png" alt="Paper theme"><br><b>Paper</b> · light and dark</td>
+    <td><img src="docs/screenshots/minimal.png" alt="Minimal theme"><br><b>Minimal</b> · light and dark</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/citrus.png" alt="Citrus theme"><br><b>Citrus</b> · light</td>
+    <td><img src="docs/screenshots/terracotta.png" alt="Terracotta theme"><br><b>Terracotta</b> · light</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/neon-noir.png" alt="Neon Noir theme"><br><b>Neon Noir</b> · dark</td>
+    <td><img src="docs/screenshots/klein-settings.png" alt="The Settings panel open over the Klein theme"><br><b>Settings</b> · fonts, size, line height, width</td>
+  </tr>
+</table>
+
 ## Develop
 
 ```sh
@@ -13,6 +42,10 @@ npm test                   # frontend tests
 cd src-tauri && cargo test # backend tests
 npx tauri build --bundles app
 ```
+
+### Screenshots
+
+`npm run screenshots` regenerates everything in `docs/screenshots/`. It renders the real frontend in WebKit against mocked Tauri commands and a sample document (`scripts/screenshots/`). The first run needs `npx playwright install webkit`.
 
 ## Config
 

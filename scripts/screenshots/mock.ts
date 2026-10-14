@@ -1,0 +1,56 @@
+// Stands in for the Rust backend so the real frontend can run in a plain browser for screenshots.
+// Query params: light, dark (theme ids), appearance (light | dark).
+import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
+import sample from "./sample/two-ink-printing.md?raw";
+
+const HOME = "/Users/reader";
+const ROOT = `${HOME}/Notes`;
+const DOC = `${ROOT}/Printing/Two-ink printing.md`;
+
+const params = new URLSearchParams(location.search);
+const config = {
+  lightTheme: params.get("light") ?? "riso",
+  darkTheme: params.get("dark") ?? "klein",
+  appearance: params.get("appearance") ?? "light",
+  lastFolder: "~/Notes",
+};
+
+const file = (dir: string, name: string) => ({ name, path: `${dir}/${name}`, isDir: false, children: [] });
+const dir = (name: string, children: ReturnType<typeof file>[]) => ({ name, path: `${ROOT}/${name}`, isDir: true, children });
+const tree = {
+  truncated: false,
+  root: {
+    name: "Notes",
+    path: ROOT,
+    isDir: true,
+    children: [
+      dir("Journal", []),
+      dir("Printing", [file(`${ROOT}/Printing`, "Paper stock.md"), file(`${ROOT}/Printing`, "Two-ink printing.md")]),
+      file(ROOT, "Reading list.md"),
+      file(ROOT, "README.md"),
+    ],
+  },
+};
+
+mockWindows("main");
+mockIPC(
+  (cmd, args) => {
+    const a = args as Record<string, string>;
+    switch (cmd) {
+      case "read_config":
+        return JSON.stringify(config);
+      case "read_file":
+        if (a.path !== DOC) throw new Error("not found");
+        return { text: sample, size: sample.length };
+      case "list_tree":
+        return tree;
+      case "frontend_ready":
+        return [DOC];
+      case "plugin:path|resolve_directory":
+        return HOME;
+      default:
+        return null;
+    }
+  },
+  { shouldMockEvents: true },
+);

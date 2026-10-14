@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Folio screenshot frame</title>
+    <style>
+      /* A macOS-style window around the app, on a transparent stage with room for the shadow. */
+      :root { --bar: #e9e7e5; --bar-fg: #4d4b49; --hairline: #d3d1ce; --edge: rgba(0, 0, 0, 0.18); }
+      :root.dark { --bar: #2c2c2e; --bar-fg: #d8d8da; --hairline: #1c1c1e; --edge: rgba(255, 255, 255, 0.14); }
+      html, body { margin: 0; background: transparent; }
+      .stage { display: inline-block; padding: 40px 60px 80px; }
+      .window {
+        width: 1200px; border-radius: 12px; overflow: hidden;
+        box-shadow: 0 0 0 0.5px var(--edge), 0 22px 70px 4px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.12);
+      }
+      .titlebar {
+        position: relative; height: 28px; background: var(--bar); border-bottom: 1px solid var(--hairline);
+        font: 600 13px/28px -apple-system, system-ui, sans-serif; color: var(--bar-fg); text-align: center;
+      }
+      .lights { position: absolute; left: 10px; top: 8px; display: flex; gap: 8px; }
+      .lights i { width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.15); }
+      .lights i:nth-child(1) { background: #ff5f57; }
+      .lights i:nth-child(2) { background: #febc2e; }
+      .lights i:nth-child(3) { background: #28c840; }
+      iframe { display: block; width: 1200px; height: 821px; border: 0; }
+    </style>
+  </head>
+  <body>
+    <div class="stage">
+      <div class="window">
+        <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span><span id="title">Folio</span></div>
+        <iframe id="app" title="Folio"></iframe>
+      </div>
+    </div>
+    <script>
+      const params = new URLSearchParams(location.search);
+      if (params.get("appearance") === "dark") document.documentElement.classList.add("dark");
+      document.getElementById("title").textContent = params.get("title") ?? "Folio";
+      document.getElementById("app").src = "index.html?" + params.toString();
+    </script>
+  </body>
+</html>
