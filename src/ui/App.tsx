@@ -5,7 +5,7 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { check } from "@tauri-apps/plugin-updater";
 import { type ReactNode, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ASK_DELAY_MS, askOnFirstLaunch } from "../defaultApp/defaultApp";
+import { ASK_DELAY_MS, askOnFirstLaunch, singleFlight } from "../defaultApp/defaultApp";
 import { api, events, type DefaultApp } from "../lib/api";
 import { abbreviateHome, basename, expandHome } from "../lib/paths";
 import { sentence } from "../lib/text";
@@ -114,9 +114,23 @@ export function App() {
   useEffect(() => {
     if (settingsOpen) refreshDefaultApp();
   }, [settingsOpen, refreshDefaultApp]);
-  const makeDefaultApp = useCallback(() => {
-    api.makeDefaultMarkdownApp().then(refreshDefaultApp, (e) => notify(sentence(`Couldn't make Folio the default: ${String(e)}`)));
-  }, [refreshDefaultApp, notify]);
+  // One macOS dialog at a time: clicks while it is open are ignored, and the button shows as disabled.
+  const [makingDefault, setMakingDefault] = useState(false);
+  const makeDefaultApp = useMemo(
+    () =>
+      singleFlight(async () => {
+        setMakingDefault(true);
+        try {
+          await api.makeDefaultMarkdownApp();
+          refreshDefaultApp();
+        } catch (e) {
+          notify(sentence(`Couldn't make Folio the default: ${String(e)}`));
+        } finally {
+          setMakingDefault(false);
+        }
+      }),
+    [refreshDefaultApp, notify],
+  );
   const hasDocument = doc.rendered !== null && !doc.isEmpty && !doc.pendingLarge;
 
   const openFile = useCallback(
@@ -330,7 +344,8 @@ export function App() {
             shownTheme={shownTheme}
             invalid={invalid}
             defaultApp={defaultApp}
-            onMakeDefault={makeDefaultApp}
+            makingDefault={makingDefault}
+            onMakeDefault={() => void makeDefaultApp()}
             onChange={updateSettings}
             onClose={() => setSettingsOpen(false)}
           />

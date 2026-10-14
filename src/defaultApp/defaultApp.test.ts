@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DefaultApp } from "../lib/api";
-import { askOnFirstLaunch, shouldAsk } from "./defaultApp";
+import { askOnFirstLaunch, shouldAsk, singleFlight } from "./defaultApp";
 
 const warp: DefaultApp = { name: "Warp", isFolio: false, canSet: true };
 const folio: DefaultApp = { name: "Folio", isFolio: true, canSet: true };
@@ -19,6 +19,31 @@ function deps(status: DefaultApp | Error, answer: "made" | "declined" | Error = 
     markAsked: vi.fn(async () => {}),
   };
 }
+
+describe("singleFlight", () => {
+  it("ignores calls while one is pending, then allows the next", async () => {
+    let finish!: () => void;
+    const run = vi.fn(() => new Promise<void>((resolve) => (finish = resolve)));
+    const once = singleFlight(run);
+    const first = once();
+    void once();
+    expect(run).toHaveBeenCalledTimes(1);
+    finish();
+    await first;
+    void once();
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  it("allows the next call after a failure", async () => {
+    const run = vi.fn(async () => {
+      throw new Error("permErr");
+    });
+    const once = singleFlight(run);
+    await once().catch(() => {});
+    await once().catch(() => {});
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe("shouldAsk", () => {
   it("asks only a real install that isn't the default and hasn't asked", () => {
