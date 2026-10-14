@@ -57,6 +57,8 @@ button { font: inherit; color: inherit; }
 .settings-panel label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); }
 .settings-panel input[type="text"], .settings-panel select { font: inherit; color: var(--fg); background: color-mix(in srgb, var(--fg) 5%, var(--bg)); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; }
 .settings-panel input[type="range"] { accent-color: var(--accent); }
+.settings-panel label.settings-check { flex-direction: row; align-items: center; gap: 8px; color: var(--fg); }
+.settings-panel input[type="checkbox"] { margin: 0; accent-color: var(--accent); }
 .settings-value { color: var(--fg); font-variant-numeric: tabular-nums; }
 .settings-warning { margin: 0; padding: 8px 10px; border-radius: 6px; background: color-mix(in srgb, #d97706 18%, var(--bg)); }
 .settings-hint { margin: 0; font-size: 12px; color: var(--muted); }

@@ -42,6 +42,10 @@ export function SettingsPanel({ settings, shownTheme, invalid, onChange, onClose
       <RangeField label="Line height" range={RANGES.lineHeight} value={settings.lineHeight} format={(v) => v.toFixed(2)} onChange={(lineHeight) => onChange({ lineHeight })} />
       <RangeField label="Max width" range={RANGES.maxWidth} value={settings.maxWidth} format={(v) => `${v}ch`} onChange={(maxWidth) => onChange({ maxWidth })} />
       <TextField label="Editor command" value={settings.editorCommand} onCommit={(editorCommand) => onChange({ editorCommand })} />
+      <label className="settings-check">
+        <input type="checkbox" checked={settings.autoUpdateCheck} onChange={(e) => onChange({ autoUpdateCheck: e.target.checked })} />
+        Check for updates automatically
+      </label>
       <p className="settings-hint">Leave a font empty to use the theme's. Fonts accept any installed family name. Settings live in ~/.config/folio/config.json, which you can also edit by hand.</p>
     </aside>
   );

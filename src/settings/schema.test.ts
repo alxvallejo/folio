@@ -15,6 +15,7 @@ describe("effectiveSettings", () => {
       maxWidth: 68,
       editorCommand: "code",
       lastFolder: null,
+      autoUpdateCheck: true,
     });
     expect(effectiveSettings({})).toEqual(DEFAULTS);
   });
@@ -35,13 +36,19 @@ describe("effectiveSettings", () => {
     expect(effectiveSettings({ lightTheme: "paper", darkTheme: "minimal" })).toMatchObject({ lightTheme: "paper", darkTheme: "minimal" });
   });
 
+  it("reads autoUpdateCheck only when it is a boolean", () => {
+    expect(effectiveSettings({ autoUpdateCheck: false }).autoUpdateCheck).toBe(false);
+    expect(effectiveSettings({ autoUpdateCheck: true }).autoUpdateCheck).toBe(true);
+    expect(effectiveSettings({ autoUpdateCheck: 0 }).autoUpdateCheck).toBe(true);
+  });
+
   it("clamps out-of-range numbers", () => {
     const s = effectiveSettings({ fontSize: 40, lineHeight: 0.5, maxWidth: 200 });
     expect([s.fontSize, s.lineHeight, s.maxWidth]).toEqual([24, 1.3, 90]);
   });
 
   it("ignores values of the wrong type", () => {
-    expect(effectiveSettings({ appearance: "dim", fontSize: "20", bodyFont: "  ", headingFont: 3, lastFolder: 7 })).toEqual(DEFAULTS);
+    expect(effectiveSettings({ appearance: "dim", fontSize: "20", bodyFont: "  ", headingFont: 3, lastFolder: 7, autoUpdateCheck: "no" })).toEqual(DEFAULTS);
   });
 });
 
@@ -93,6 +100,11 @@ describe("applyPatch", () => {
 
   it("clamps and rounds numeric values", () => {
     expect(applyPatch({}, { fontSize: 30, lineHeight: 1.3 + 0.05 * 7, maxWidth: 70.4 })).toEqual({ fontSize: 24, maxWidth: 70 });
+  });
+
+  it("writes autoUpdateCheck only when it is turned off", () => {
+    expect(applyPatch({}, { autoUpdateCheck: false })).toEqual({ autoUpdateCheck: false });
+    expect(applyPatch({ autoUpdateCheck: false }, { autoUpdateCheck: true })).toEqual({});
   });
 
   it("preserves unknown keys", () => {

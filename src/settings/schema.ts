@@ -14,6 +14,8 @@ export interface Settings {
   maxWidth: number;
   editorCommand: string;
   lastFolder: string | null;
+  /** Check GitHub for a new Folio 30 seconds after launch. */
+  autoUpdateCheck: boolean;
 }
 
 export type RawConfig = Record<string, unknown>;
@@ -38,6 +40,7 @@ export const DEFAULTS: Settings = {
   maxWidth: 68,
   editorCommand: "code",
   lastFolder: null,
+  autoUpdateCheck: true,
 };
 
 export const DEFAULT_FONT_SIZE = DEFAULTS.fontSize;
@@ -91,6 +94,7 @@ export function effectiveSettings(input: RawConfig): Settings {
     maxWidth: numeric("maxWidth"),
     editorCommand: text(raw.editorCommand) ?? DEFAULTS.editorCommand,
     lastFolder: text(raw.lastFolder),
+    autoUpdateCheck: typeof raw.autoUpdateCheck === "boolean" ? raw.autoUpdateCheck : DEFAULTS.autoUpdateCheck,
   };
 }
 
