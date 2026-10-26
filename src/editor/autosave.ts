@@ -11,6 +11,10 @@ export interface Autosave {
   isOwnWrite(diskText: string): boolean;
   /** The editor now shows text that is already on disk (after a reload). */
   markSaved(text: string): void;
+  /** Stops timed saves (edits are kept, not written) until release(). flush() and dispose() still write. */
+  hold(): void;
+  release(): void;
+  isHeld(): boolean;
   dispose(): Promise<void>;
 }
 
@@ -48,6 +52,7 @@ export function createAutosave(opts: Options): Autosave {
   let chain: Promise<void> = Promise.resolve();
   let errored = false;
   let disposed = false;
+  let held = false;
   let recent: string[] = [opts.initialText];
   const listeners = new Set<() => void>();
 
@@ -60,6 +65,15 @@ export function createAutosave(opts: Options): Autosave {
   function cancelTimer() {
     if (timer !== null) clearTimer(timer);
     timer = null;
+  }
+
+  function schedule() {
+    cancelTimer();
+    if (held) return;
+    timer = setTimer(() => {
+      timer = null;
+      enqueue().catch(() => {}); // already reported through state and onError
+    }, delayMs);
   }
 
   async function writeLatest() {
@@ -107,10 +121,7 @@ export function createAutosave(opts: Options): Autosave {
       setState(
         text === lastSaved && current !== "saving" ? "saved" : "unsaved",
       );
-      timer = setTimer(() => {
-        timer = null;
-        enqueue().catch(() => {}); // already reported through state and onError
-      }, delayMs);
+      schedule();
     },
     flush() {
       cancelTimer();
@@ -129,6 +140,15 @@ export function createAutosave(opts: Options): Autosave {
       errored = false;
       setState("saved");
     },
+    hold() {
+      held = true;
+      cancelTimer();
+    },
+    release() {
+      held = false;
+      if (latest !== lastSaved) schedule();
+    },
+    isHeld: () => held,
     async dispose() {
       cancelTimer();
       try {

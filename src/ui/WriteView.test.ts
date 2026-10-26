@@ -119,7 +119,9 @@ describe("WriteView", () => {
     await advance(2000);
     expect(writer().text()).toBe(outside);
     expect(banner()).toBeNull();
-    expect(writePost).not.toHaveBeenCalled();
+    expect(writePost).toHaveBeenLastCalledWith(PATH, outside);
+    expect(writePost).not.toHaveBeenCalledWith(PATH, expect.stringContaining("Body mine"));
+    expect(states[states.length - 1]).toBe("saved");
     // Alex's text is one undo away.
     act(() => void undo(writer().view));
     expect(writer().text()).toContain("Body mine");
@@ -129,22 +131,53 @@ describe("WriteView", () => {
     render(CRLF_POST);
     type(" mine");
     render(CRLF_POST.replace("Body", "Theirs"));
+    await advance(2000);
+    expect(writePost).not.toHaveBeenCalled();
     click("Keep mine");
     await advance(0);
     expect(writePost).toHaveBeenLastCalledWith(PATH, CRLF_POST.replace("Body", "Body mine"));
     expect(banner()).toBeNull();
   });
 
-  it("keeps the disk version the banner offered even after autosave overwrote the file", async () => {
+  it("holds saves while the banner is up, so the outside version stays on disk", async () => {
+    render(CRLF_POST);
+    type(" mine");
+    render(CRLF_POST.replace("Body", "Theirs"));
+    type(" and more", "Body mine");
+    await advance(2000);
+    expect(writePost).not.toHaveBeenCalled();
+    expect(states[states.length - 1]).toBe("error"); // the title says "not saved"
+    act(() => window.dispatchEvent(new Event("blur")));
+    await advance(0);
+    expect(writePost).not.toHaveBeenCalled();
+  });
+
+  it("Use the disk version after the hold has run for a while writes the disk version", async () => {
     render(CRLF_POST);
     type(" mine");
     const outside = CRLF_POST.replace("Body", "Theirs");
     render(outside);
-    await advance(1000); // autosave writes Alex's text over the disk version
-    render(CRLF_POST.replace("Body", "Body mine")); // its watcher echo
+    await advance(2000);
     click("Use the disk version");
     await advance(0);
     expect(writer().text()).toBe(outside);
+    expect(writePost).toHaveBeenCalledTimes(1);
+    expect(writePost).toHaveBeenLastCalledWith(PATH, outside);
+    expect(states[states.length - 1]).toBe("saved");
+  });
+
+  it("leaving with the banner up keeps Alex's text, like Keep mine", async () => {
+    render(CRLF_POST);
+    type(" mine");
+    render(CRLF_POST.replace("Body", "Theirs"));
+    await act(() => writer().flush()); // what leavePost does before switching files
+    expect(writePost).toHaveBeenLastCalledWith(PATH, CRLF_POST.replace("Body", "Body mine"));
+    writePost.mockClear();
+    type(" again", "Body mine");
+    act(() => root.unmount()); // any other way out: dispose
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(writePost).toHaveBeenLastCalledWith(PATH, CRLF_POST.replace("Body", "Body mine again"));
+    root = createRoot(container); // for afterEach
   });
 
   it("writes the disk version back when a save in flight lands after Use the disk version", async () => {

@@ -277,4 +277,40 @@ describe("autosave", () => {
     b.edit("y");
     await expect(b.flush()).resolves.toBeUndefined();
   });
+
+  it("hold stops timed saves, keeps the text, and still lets flush write", async () => {
+    const save = ok();
+    const a = createAutosave({ path: "/p/a.md", save, initialText: "", onError: vi.fn() });
+    a.edit("mine");
+    a.hold();
+    a.edit("mine more");
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(save).not.toHaveBeenCalled();
+    expect(a.state()).toBe("unsaved");
+    expect(a.isHeld()).toBe(true);
+    await a.flush();
+    expect(save).toHaveBeenCalledWith("/p/a.md", "mine more");
+  });
+
+  it("release resumes timed saves of the held text", async () => {
+    const save = ok();
+    const a = createAutosave({ path: "/p/a.md", save, initialText: "", onError: vi.fn() });
+    a.hold();
+    a.edit("mine");
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(save).not.toHaveBeenCalled();
+    a.release();
+    expect(a.isHeld()).toBe(false);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(save).toHaveBeenCalledWith("/p/a.md", "mine");
+  });
+
+  it("dispose writes held text", async () => {
+    const save = ok();
+    const a = createAutosave({ path: "/p/a.md", save, initialText: "", onError: vi.fn() });
+    a.edit("last words");
+    a.hold();
+    await a.dispose();
+    expect(save).toHaveBeenCalledWith("/p/a.md", "last words");
+  });
 });

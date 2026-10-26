@@ -51,13 +51,10 @@ function replaceDoc(view: EditorView, next: string) {
   if (changes) view.dispatch({ changes, annotations: isolateHistory.of("full") });
 }
 
-/** Shows `text`, which is on disk now, and treats it as saved. */
-async function showDiskText(view: EditorView, autosave: Autosave, text: string) {
-  replaceDoc(view, text);
-  autosave.markSaved(text);
-  // A save already in flight can land after this and overwrite `text` on disk. The flush queues
-  // behind it and, only in that case, writes `text` back.
-  await autosave.flush().catch(() => {});
+/** The title's save state. Held edits (conflict banner up) are not being saved, so say so. */
+function shownState(autosave: Autosave): SaveState {
+  const state = autosave.state();
+  return autosave.isHeld() && state === "unsaved" ? "error" : state;
 }
 
 /** The writing view for one post; render it with `key={path}` so each post gets its own autosave. */
@@ -136,15 +133,18 @@ export function WriteView({ path, diskText, removed, onState, onHeadings, onActi
     const onScroll = () => {
       if (!frame) frame = requestAnimationFrame(updateActive);
     };
-    const onBlur = () => void autosave.flush().catch(() => {});
+    // Not while the conflict banner holds saves: that would overwrite the version it offers.
+    const onBlur = () => {
+      if (!autosave.isHeld()) autosave.flush().catch(() => {});
+    };
 
     view.dispatch({ selection: EditorSelection.cursor(startPosition(view.state)), scrollIntoView: true });
     view.focus();
     refreshOutline();
     view.scrollDOM.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("blur", onBlur);
-    const unsubscribe = autosave.subscribe(() => reportState(autosave.state()));
-    reportState(autosave.state());
+    const unsubscribe = autosave.subscribe(() => reportState(shownState(autosave)));
+    reportState(shownState(autosave));
 
     const handle: WriterHandle = {
       view,
@@ -188,29 +188,46 @@ export function WriteView({ path, diskText, removed, onState, onHeadings, onActi
     const editorText = docText(view.state);
     const decision = decideDiskChange(diskText, autosave, editorText);
     if (decision === "conflict") {
+      // Hold timed saves so the outside version stays on disk until Alex chooses. Leaving the
+      // post (switch, quit, close, install) still flushes, which keeps his text.
+      autosave.hold();
       setConflict(diskText);
+      onState(shownState(autosave));
     } else if (decision === "reload") {
-      setConflict(null);
-      void showDiskText(view, autosave, diskText);
-    } else if (diskText === editorText && !autosave.isOwnWrite(diskText)) {
-      // Someone else wrote exactly what Alex has. (Folio's own save keeps the banner: autosave
-      // may have just written over the version it offers.)
+      // Only when everything is saved, so no save is pending or in flight.
+      replaceDoc(view, diskText);
+      autosave.markSaved(diskText);
+    } else if (autosave.isHeld() && diskText === editorText && !autosave.isOwnWrite(diskText)) {
+      // Someone else wrote exactly what Alex has: nothing left to choose.
+      autosave.release();
+      autosave.markSaved(diskText);
       setConflict(null);
     }
   }, [diskText, view]);
 
-  const takeDiskVersion = () => {
+  const takeDiskVersion = async () => {
     const autosave = autosaveRef.current;
     if (!view || !autosave || conflict === null) return;
     setConflict(null);
-    void showDiskText(view, autosave, conflict);
+    autosave.release();
+    replaceDoc(view, conflict);
+    autosave.edit(conflict); // already done by the doc change, unless the editor showed it anyway
     view.focus();
+    // Write the disk version back: a save in flight (or one made before the hold) may have put
+    // Alex's text on disk. A failure is reported through onError and the title.
+    try {
+      await autosave.flush();
+    } catch {
+      return;
+    }
+    autosave.markSaved(conflict);
   };
 
   const keepMine = () => {
     const autosave = autosaveRef.current;
     if (!view || !autosave || conflict === null) return;
     setConflict(null);
+    autosave.release();
     // Record the disk version as the last save so the editor text always counts as a change,
     // then write it over the disk version now.
     autosave.markSaved(conflict);
@@ -226,7 +243,7 @@ export function WriteView({ path, diskText, removed, onState, onHeadings, onActi
           File no longer exists
         </div>
       )}
-      {conflict !== null && !removed && <ConflictBanner onUseDisk={takeDiskVersion} onKeepMine={keepMine} />}
+      {conflict !== null && !removed && <ConflictBanner onUseDisk={() => void takeDiskVersion()} onKeepMine={keepMine} />}
       <div className="write-editor" ref={hostRef} />
       {view && linkRequest && <LinkBox view={view} request={linkRequest} onClose={() => setLinkRequest(null)} />}
     </div>
