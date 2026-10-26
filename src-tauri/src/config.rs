@@ -36,7 +36,9 @@ pub fn read_config() -> Result<Option<String>, String> {
 
 #[tauri::command]
 pub fn write_config(text: String) -> Result<(), String> {
-    write_config_at(&config_path(), &text)
+    let path = config_path();
+    let on_disk = read_config_at(&path)?;
+    write_config_at(&path, &crate::posts::keep_posts_folder(&text, on_disk.as_deref()))
 }
 
 #[tauri::command]

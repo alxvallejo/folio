@@ -5,6 +5,7 @@ mod fs;
 mod menu;
 mod navigation;
 mod open;
+mod posts;
 mod relaunch;
 mod watch;
 
@@ -36,6 +37,11 @@ pub fn run() {
             open::frontend_ready,
             editor::open_in_editor,
             relaunch::relaunch,
+            posts::posts_folder,
+            posts::choose_posts_folder,
+            posts::clear_posts_folder,
+            posts::write_post,
+            posts::create_post,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Folio");

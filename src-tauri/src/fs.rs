@@ -5,6 +5,8 @@ use std::path::Path;
 pub struct FileContents {
     pub text: String,
     pub size: u64,
+    /// True when the file wasn't valid UTF-8, so saving this text back would change bytes.
+    pub lossy: bool,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -42,7 +44,11 @@ pub fn decode(bytes: &[u8]) -> String {
 
 pub fn read_text(path: &Path) -> Result<FileContents, String> {
     let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
-    Ok(FileContents { size: bytes.len() as u64, text: decode(&bytes) })
+    Ok(FileContents {
+        size: bytes.len() as u64,
+        lossy: std::str::from_utf8(&bytes).is_err(),
+        text: decode(&bytes),
+    })
 }
 
 pub fn is_markdown(path: &Path) -> bool {
@@ -148,6 +154,17 @@ mod tests {
     fn decode_strips_bom_and_replaces_invalid_utf8() {
         assert_eq!(decode(b"\xEF\xBB\xBFhello"), "hello");
         assert_eq!(decode(b"a\xFFb"), "a\u{FFFD}b");
+    }
+
+    #[test]
+    fn read_text_flags_lossy_utf8() {
+        let dir = tempfile::tempdir().unwrap();
+        let bad = dir.path().join("bad.md");
+        std::fs::write(&bad, [0xff, b'a']).unwrap();
+        assert!(read_text(&bad).unwrap().lossy);
+        let good = dir.path().join("good.md");
+        std::fs::write(&good, "héllo").unwrap();
+        assert!(!read_text(&good).unwrap().lossy);
     }
 
     #[test]
