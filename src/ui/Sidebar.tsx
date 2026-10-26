@@ -12,7 +12,7 @@ interface Props {
   onOpen: (path: string) => void;
   /** Draft/Published tags by path; files not in the map get no tag. */
   statuses?: Map<string, PostStatus>;
-  /** Set only when the open folder is the posts folder or inside it; shows "+ New post". */
+  /** Shows "+ New post"; outside the posts folder it opens (or first asks for) the posts folder. */
   onNewPost?: () => void;
   /** The inline title box, shown under the header while a new post is being named. */
   newPostBox?: ReactNode;

@@ -487,7 +487,7 @@ export function App() {
           currentPath={doc.path}
           onOpen={(path) => void openFile(path)}
           statuses={statuses}
-          onNewPost={inPostsFolder ? () => setNewPostOpen(true) : undefined}
+          onNewPost={() => void startNewPost()}
           newPostBox={newPostOpen && inPostsFolder ? <NewPostBox onCreate={newPost} onClose={() => setNewPostOpen(false)} /> : undefined}
         />
       )}
