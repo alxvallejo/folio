@@ -63,12 +63,19 @@ pub fn write_post_at(folder: &Path, path: &Path, text: &str) -> Result<(), Strin
     if !meta.is_file() {
         return Err(OUTSIDE.to_string());
     }
-    let had_bom = std::fs::read(&target).map_err(|e| e.to_string())?.starts_with(BOM);
+    let existing = std::fs::read(&target).map_err(|e| e.to_string())?;
+    let had_bom = existing.starts_with(BOM);
 
     let name = target.file_name().ok_or(OUTSIDE)?.to_string_lossy().into_owned();
+    // Never replace bytes that the lossy decode on read couldn't represent.
+    if std::str::from_utf8(&existing).is_err() {
+        return Err(format!("{name} isn't valid UTF-8, so Folio won't save over it."));
+    }
     let tmp = target.with_file_name(format!(".{name}.folio-tmp"));
     let result = (|| -> std::io::Result<()> {
-        let mut file = std::fs::File::create(&tmp)?;
+        // Clear a stale or planted temp name first; create_new then refuses to follow a symlink.
+        let _ = std::fs::remove_file(&tmp);
+        let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(&tmp)?;
         if had_bom {
             file.write_all(BOM)?;
         }
@@ -263,6 +270,30 @@ mod tests {
             .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
             .collect();
         assert_eq!(names, vec!["a.md"]);
+    }
+
+    #[test]
+    fn write_ignores_planted_temp_symlink() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let victim = outside.path().join("victim.txt");
+        std::fs::write(&victim, "safe").unwrap();
+        let file = dir.path().join("post.md");
+        std::fs::write(&file, "# a").unwrap();
+        std::os::unix::fs::symlink(&victim, dir.path().join(".post.md.folio-tmp")).unwrap();
+        write_post_at(dir.path(), &file, "# b").unwrap();
+        assert_eq!(std::fs::read_to_string(&victim).unwrap(), "safe");
+        assert!(std::fs::symlink_metadata(&file).unwrap().file_type().is_file());
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "# b");
+    }
+
+    #[test]
+    fn write_refuses_invalid_utf8() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("bad.md");
+        std::fs::write(&file, [0xff, b'a']).unwrap();
+        assert!(write_post_at(dir.path(), &file, "x").is_err());
+        assert_eq!(std::fs::read(&file).unwrap(), [0xff, b'a']);
     }
 
     #[test]
