@@ -102,3 +102,9 @@ button { font: inherit; color: inherit; }
 .toasts { position: fixed; bottom: 16px; left: 50%; z-index: 10; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .toast { display: flex; align-items: center; gap: 8px; max-width: 560px; padding: 8px 8px 8px 14px; border-radius: 8px; background: var(--fg); color: var(--bg); box-shadow: 0 6px 24px rgb(0 0 0 / .2); }
 .toast .icon-button { width: 22px; height: 22px; color: inherit; }
+.link-box-backdrop { position: fixed; inset: 0; z-index: 40; }
+.link-box { position: fixed; z-index: 41; display: flex; flex-direction: column; gap: 6px; width: 300px; max-width: calc(100vw - 16px); margin-top: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); box-shadow: 0 6px 24px rgba(0, 0, 0, .18); }
+.link-box input { box-sizing: border-box; width: 100%; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; font-size: 13px; }
+.link-box input:focus { outline: none; border-color: var(--accent); }
+.link-box-remove { align-self: flex-end; padding: 2px 8px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 12px; }
+.link-box-remove:hover { color: var(--fg); }
