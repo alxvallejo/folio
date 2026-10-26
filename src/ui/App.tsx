@@ -147,10 +147,12 @@ export function App() {
 
   const openFolder = useCallback(
     async (root: string) => {
-      if (await openTree(root)) {
+      const opened = await openTree(root);
+      if (opened) {
         setSidebarOpen(true);
         void store.update({ lastFolder: home ? abbreviateHome(root, home) : root });
       }
+      return opened;
     },
     [openTree, store, home],
   );
@@ -176,14 +178,8 @@ export function App() {
       if (!folderPath) return false;
     }
     setPostsFolder(folderPath);
-    return openTree(folderPath).then((opened) => {
-      if (opened) {
-        setSidebarOpen(true);
-        void store.update({ lastFolder: home ? abbreviateHome(folderPath, home) : folderPath });
-      }
-      return opened;
-    });
-  }, [notify, openTree, store, home]);
+    return openFolder(folderPath);
+  }, [notify, openFolder]);
 
   const openPosts = useCallback(async () => {
     await ensurePostsFolder();
