@@ -119,7 +119,9 @@ export function App() {
     () => leavePost(writerRef.current, doc.path, (message) => ask(message, { kind: "warning", okLabel: "Leave", cancelLabel: "Stay" })),
     [doc.path],
   );
-  const inPostsFolder = postsFolder !== null && folder.root !== null && (folder.root === postsFolder || isPostPath(`${folder.root}/x.md`, postsFolder));
+  // The tree's paths are canonical, like postsFolder, even when the folder was opened through a symlink.
+  const treeRoot = folder.tree?.root.path ?? folder.root;
+  const inPostsFolder = postsFolder !== null && treeRoot !== null && (treeRoot === postsFolder || isPostPath(`${treeRoot}/x.md`, postsFolder));
   const [newPostOpen, setNewPostOpen] = useState(false);
   useEffect(() => {
     if (!inPostsFolder) setNewPostOpen(false);
