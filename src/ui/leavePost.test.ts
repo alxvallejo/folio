@@ -23,6 +23,12 @@ describe("leavePost", () => {
     expect(await leavePost(failing, "/u/Blog/A post.md", async () => true)).toBe(true);
   });
 
+  it("names the post where it is now, after a rename to follow its title", async () => {
+    const confirm = vi.fn(async () => false);
+    await leavePost({ ...failing, path: () => "/u/Blog/Hello.md" }, "/u/Blog/Untitled.md", confirm);
+    expect(confirm).toHaveBeenCalledWith("Hello.md couldn't be saved. Leave it anyway? Your unsaved changes will be lost.");
+  });
+
   it("stays when the question itself fails", async () => {
     expect(await leavePost(failing, "/u/Blog/A post.md", () => Promise.reject(new Error("no dialog")))).toBe(false);
   });

@@ -53,6 +53,59 @@ describe("autosave", () => {
     expect(save).toHaveBeenCalledTimes(1);
   });
 
+  it("moves after writing pending text, and saves to the new path after", async () => {
+    const save = ok();
+    const a = createAutosave({ path: "/p/Untitled.md", save, initialText: "", onError: vi.fn() });
+    a.edit("# Hello");
+    const move = vi.fn(async (from: string) => {
+      expect(save).toHaveBeenCalledWith(from, "# Hello");
+      return "/p/Hello.md";
+    });
+    await expect(a.move(move)).resolves.toBe("/p/Hello.md");
+    expect(move).toHaveBeenCalledWith("/p/Untitled.md");
+    expect(a.path()).toBe("/p/Hello.md");
+    a.edit("# Hello\n\nMore");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(save).toHaveBeenLastCalledWith("/p/Hello.md", "# Hello\n\nMore");
+    expect(a.state()).toBe("saved");
+  });
+
+  it("never writes to the old path once a move is queued", async () => {
+    let finishMove: (path: string) => void = () => {};
+    const save = ok();
+    const a = createAutosave({ path: "/p/a.md", save, initialText: "", onError: vi.fn() });
+    const moved = a.move(() => new Promise<string>((r) => (finishMove = r)));
+    await vi.advanceTimersByTimeAsync(0);
+    a.edit("typed during the move");
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(save).not.toHaveBeenCalled();
+    finishMove("/p/b.md");
+    await moved;
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledWith("/p/b.md", "typed during the move");
+  });
+
+  it("keeps the old path when the move fails", async () => {
+    const save = ok();
+    const a = createAutosave({ path: "/p/a.md", save, initialText: "", onError: vi.fn() });
+    await expect(a.move(async () => Promise.reject(new Error("nope")))).rejects.toThrow("nope");
+    expect(a.path()).toBe("/p/a.md");
+    a.edit("x");
+    await a.flush();
+    expect(save).toHaveBeenCalledWith("/p/a.md", "x");
+  });
+
+  it("doesn't move when the pending write fails", async () => {
+    const save = vi.fn(async () => Promise.reject(new Error("disk full")));
+    const a = createAutosave({ path: "/p/a.md", save, initialText: "", onError: vi.fn() });
+    a.edit("x");
+    const move = vi.fn(async () => "/p/b.md");
+    await expect(a.move(move)).rejects.toThrow("disk full");
+    expect(move).not.toHaveBeenCalled();
+    expect(a.path()).toBe("/p/a.md");
+  });
+
   it("serializes_writes", async () => {
     const resolvers: Array<() => void> = [];
     const save = vi.fn(

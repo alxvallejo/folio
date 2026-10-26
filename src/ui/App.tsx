@@ -24,7 +24,6 @@ import { DocumentView, LargeFilePrompt } from "./DocumentView";
 import { EmptyState } from "./EmptyState";
 import { FindBar } from "./FindBar";
 import { leavePost } from "./leavePost";
-import { NewPostBox } from "./NewPostBox";
 import { createAndOpenPost } from "./newPost";
 import { scrollToFragment } from "./scroll";
 import { SettingsPanel } from "./SettingsPanel";
@@ -122,10 +121,6 @@ export function App() {
   // The tree's paths are canonical, like postsFolder, even when the folder was opened through a symlink.
   const treeRoot = folder.tree?.root.path ?? folder.root;
   const inPostsFolder = postsFolder !== null && treeRoot !== null && (treeRoot === postsFolder || isPostPath(`${treeRoot}/x.md`, postsFolder));
-  const [newPostOpen, setNewPostOpen] = useState(false);
-  useEffect(() => {
-    if (!inPostsFolder) setNewPostOpen(false);
-  }, [inPostsFolder]);
 
   // Updates
   const updater = useMemo(
@@ -228,17 +223,22 @@ export function App() {
     await ensurePostsFolder();
   }, [ensurePostsFolder]);
 
-  /** Creates a draft and opens it; resolves false (after a toast) when it couldn't be created. */
-  const newPost = useCallback(
-    (title: string) => createAndOpenPost(title, { create: api.createPost, open: (path) => openFile(path), notify }),
-    [openFile, notify],
-  );
-  /** ⌘N: show the title box, opening the posts folder first when it isn't the open folder. */
+  /**
+   * ⌘N and the sidebar button: opens the posts folder if it isn't open, then creates Untitled.md
+   * and opens it with the cursor in its empty title. The file is renamed as the title is written.
+   */
+  const creatingPost = useRef(false);
   const startNewPost = useCallback(async () => {
-    if (!inPostsFolder && !(await ensurePostsFolder())) return;
-    setSidebarOpen(true);
-    setNewPostOpen(true);
-  }, [inPostsFolder, ensurePostsFolder]);
+    if (creatingPost.current) return;
+    creatingPost.current = true;
+    try {
+      if (!inPostsFolder && !(await ensurePostsFolder())) return;
+      setSidebarOpen(true);
+      await createAndOpenPost("", { create: api.createPost, open: (path) => openFile(path), notify });
+    } finally {
+      creatingPost.current = false;
+    }
+  }, [inPostsFolder, ensurePostsFolder, openFile, notify]);
 
   /** Puts the open post on the clipboard as formatted text for pasting into Substack. */
   const copyForSubstack = useCallback(async () => {
@@ -370,7 +370,8 @@ export function App() {
     const command = settings.editorCommand;
     // Save first so the editor opens what's on screen. A failed save has already been reported.
     await writerRef.current?.flush().catch(() => {});
-    api.openInEditor(path, command).catch(() => notify(`Couldn't run \`${command}\` — set your editor in Settings`));
+    // The flush may have renamed the post to follow its title.
+    api.openInEditor(writerRef.current?.path() ?? path, command).catch(() => notify(`Couldn't run \`${command}\` — set your editor in Settings`));
   }, [doc.path, settings.editorCommand, notify]);
 
   // Keyboard
@@ -439,7 +440,7 @@ export function App() {
   } else if (writing && doc.path && doc.text !== null) {
     body = (
       <WriteView
-        key={doc.path}
+        key={doc.session}
         path={doc.path}
         diskText={doc.text}
         removed={doc.removed}
@@ -447,6 +448,7 @@ export function App() {
         onHeadings={setWritingHeadings}
         onStatus={setPostStatus}
         onActiveHeading={setActiveHeading}
+        onRenamed={doc.rename}
         handleRef={writerRef}
         notify={notify}
       />
@@ -488,7 +490,6 @@ export function App() {
           onOpen={(path) => void openFile(path)}
           statuses={statuses}
           onNewPost={() => void startNewPost()}
-          newPostBox={newPostOpen && inPostsFolder ? <NewPostBox onCreate={newPost} onClose={() => setNewPostOpen(false)} /> : undefined}
         />
       )}
       <main className="main">
@@ -517,7 +518,7 @@ export function App() {
           onLater={updater.dismiss}
           onInstall={() =>
             void leaveOpenPost().then((left) => {
-              if (left) void updater.install(doc.path);
+              if (left) void updater.install(writerRef.current?.path() ?? doc.path);
             })
           }
         />

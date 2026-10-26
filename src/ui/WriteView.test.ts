@@ -6,8 +6,9 @@ import type { SaveState } from "../editor/autosave";
 import { api } from "../lib/api";
 import { WriteView, type WriterHandle } from "./WriteView";
 
-vi.mock("../lib/api", () => ({ api: { writePost: vi.fn(async () => {}) } }));
+vi.mock("../lib/api", () => ({ api: { writePost: vi.fn(async () => {}), renamePost: vi.fn() } }));
 const writePost = vi.mocked(api.writePost);
+const renamePost = vi.mocked(api.renamePost);
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 // jsdom has no layout; CodeMirror measures text ranges.
@@ -22,19 +23,21 @@ let container: HTMLDivElement;
 let handle: ReturnType<typeof createRef<WriterHandle | null>>;
 let states: SaveState[];
 let notify: ReturnType<typeof vi.fn<(m: string) => void>>;
+let renamed: [string, string][];
 
-function render(diskText: string, removed = false) {
+function render(diskText: string, removed = false, path = PATH) {
   act(() =>
     root.render(
       createElement(WriteView, {
-        key: PATH,
-        path: PATH,
+        key: "post",
+        path,
         diskText,
         removed,
         onState: (s) => states.push(s),
         onHeadings: () => {},
         onStatus: () => {},
         onActiveHeading: () => {},
+        onRenamed: (from, to) => renamed.push([from, to]),
         handleRef: handle,
         notify,
       }),
@@ -58,6 +61,9 @@ beforeEach(() => {
   vi.useFakeTimers();
   writePost.mockReset();
   writePost.mockImplementation(async () => {});
+  renamePost.mockReset();
+  renamePost.mockImplementation(async (_path: string, _from: string, title: string) => `/u/Blog/${title}.md`);
+  renamed = [];
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
@@ -298,5 +304,78 @@ describe("WriteView", () => {
     render(outside);
     expect(writer().text()).toBe(outside);
     expect(container.querySelector(".link-box")).toBeNull();
+  });
+
+  describe("file name follows the title", () => {
+    const NEW_POST = "---\nstatus: draft\n---\n\n# \n";
+    const UNTITLED = "/u/Blog/Untitled.md";
+
+    it("starts a new post in its empty title and renames it on Enter", async () => {
+      render(NEW_POST, false, UNTITLED);
+      const view = writer().view;
+      expect(view.state.doc.lineAt(view.state.selection.main.head).text).toBe("# ");
+      act(() => view.dispatch(view.state.replaceSelection("Slow software"), { userEvent: "input.type" }));
+      await advance(300);
+      expect(renamePost).not.toHaveBeenCalled();
+      act(() => view.dispatch(view.state.replaceSelection("\n"), { userEvent: "input" }));
+      await advance(0);
+      expect(writePost).toHaveBeenCalledWith(UNTITLED, "---\nstatus: draft\n---\n\n# Slow software\n\n");
+      expect(renamePost).toHaveBeenCalledWith(UNTITLED, "", "Slow software");
+      expect(renamed).toEqual([[UNTITLED, "/u/Blog/Slow software.md"]]);
+      act(() => view.dispatch(view.state.replaceSelection("Body"), { userEvent: "input.type" }));
+      await advance(1000);
+      expect(writePost).toHaveBeenLastCalledWith("/u/Blog/Slow software.md", expect.stringContaining("Body"));
+    });
+
+    it("renames when leaving the post while still on the title", async () => {
+      render(NEW_POST, false, UNTITLED);
+      const view = writer().view;
+      act(() => view.dispatch(view.state.replaceSelection("Hello"), { userEvent: "input.type" }));
+      await act(() => writer().flush());
+      expect(renamePost).toHaveBeenCalledWith(UNTITLED, "", "Hello");
+      expect(renamed).toEqual([[UNTITLED, "/u/Blog/Hello.md"]]);
+      expect(writer().path()).toBe("/u/Blog/Hello.md");
+    });
+
+    it("leaves a post alone when its title wasn't edited", async () => {
+      render(CRLF_POST);
+      type(" more");
+      await act(() => writer().flush());
+      expect(renamePost).not.toHaveBeenCalled();
+    });
+
+    it("renames after the title is edited and the cursor moves off it", async () => {
+      render(CRLF_POST);
+      const view = writer().view;
+      const end = view.state.doc.toString().indexOf("# Slow software") + "# Slow software".length;
+      act(() => view.dispatch({ changes: { from: end, insert: " again" }, selection: { anchor: end + 6 }, userEvent: "input.type" }));
+      expect(renamePost).not.toHaveBeenCalled();
+      act(() => view.dispatch({ selection: { anchor: view.state.doc.length } }));
+      await advance(0);
+      expect(renamePost).toHaveBeenCalledWith(PATH, "Slow software", "Slow software again");
+    });
+
+    it("never renames for a title changed outside Folio", async () => {
+      render(CRLF_POST);
+      render(CRLF_POST.replace("# Slow software", "# Renamed in VS Code"));
+      await advance(300);
+      expect(writer().view.state.doc.toString()).toContain("# Renamed in VS Code");
+      type(" more");
+      await act(() => writer().flush());
+      expect(renamePost).not.toHaveBeenCalled();
+    });
+
+    it("says so when the rename fails, and keeps saving to the old name", async () => {
+      renamePost.mockImplementation(async () => Promise.reject("Folio only writes posts in your posts folder."));
+      render(NEW_POST, false, UNTITLED);
+      const view = writer().view;
+      act(() => view.dispatch(view.state.replaceSelection("Hello"), { userEvent: "input.type" }));
+      await act(() => writer().flush());
+      expect(notify).toHaveBeenCalledWith("Couldn't rename Untitled.md: Folio only writes posts in your posts folder.");
+      expect(renamed).toEqual([]);
+      act(() => view.dispatch(view.state.replaceSelection("!"), { userEvent: "input.type" }));
+      await advance(1000);
+      expect(writePost).toHaveBeenLastCalledWith(UNTITLED, expect.stringContaining("Hello!"));
+    });
   });
 });

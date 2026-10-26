@@ -5,7 +5,7 @@ import { basename } from "../lib/paths";
  * Resolves true to go ahead. When the save fails, `confirm` asks; anything but "Leave" stays.
  */
 export async function leavePost(
-  writer: { flush(): Promise<void> } | null,
+  writer: { flush(): Promise<void>; path?(): string } | null,
   path: string | null,
   confirm: (message: string) => Promise<boolean>,
 ): Promise<boolean> {
@@ -14,7 +14,9 @@ export async function leavePost(
     await writer.flush();
     return true;
   } catch {
-    const name = path ? basename(path) : "This post";
+    // The flush may have renamed the post to follow its title.
+    const current = writer.path?.() ?? path;
+    const name = current ? basename(current) : "This post";
     return confirm(`${name} couldn't be saved. Leave it anyway? Your unsaved changes will be lost.`).catch(() => false);
   }
 }

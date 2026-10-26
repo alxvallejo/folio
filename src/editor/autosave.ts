@@ -22,6 +22,13 @@ export interface Autosave {
   hold(diskText: string): void;
   release(): void;
   isHeld(): boolean;
+  /**
+   * Writes pending text, then moves the file with `move(path)`, which resolves the new path.
+   * Queued like a save, so nothing is ever written to the old path after the move. Rejects (and
+   * keeps the old path) when the write or the move fails.
+   */
+  move(move: (path: string) => Promise<string>): Promise<string>;
+  path(): string;
   dispose(): Promise<void>;
 }
 
@@ -44,10 +51,11 @@ function errorMessage(path: string, err: unknown): string {
   return `Couldn't save ${basename(path)}: ${detail}${detail.endsWith(".") ? "" : "."}`;
 }
 
-// One instance per open post. `path` is fixed at creation so pending text can
-// only ever be written to the post it was typed in.
+// One instance per open post. `path` changes only through move(), which runs in
+// the save queue, so pending text can only ever be written to the post it was typed in.
 export function createAutosave(opts: Options): Autosave {
-  const { path, save, onError } = opts;
+  const { save, onError } = opts;
+  let path = opts.path;
   const delayMs = opts.delayMs ?? 1000;
   const setTimer = opts.setTimer ?? ((fn, ms) => setTimeout(fn, ms));
   const clearTimer = opts.clearTimer ?? ((id) => clearTimeout(id));
@@ -186,6 +194,21 @@ export function createAutosave(opts: Options): Autosave {
       if (latest !== lastSaved) schedule();
     },
     isHeld: () => held,
+    move(move) {
+      cancelTimer();
+      const run = chain.then(async () => {
+        await writeLatest();
+        path = await move(path);
+        return path;
+      });
+      // Edits typed meanwhile schedule saves that queue behind this, so they go to the new path.
+      chain = run.then(
+        () => {},
+        () => {},
+      );
+      return run;
+    },
+    path: () => path,
     async dispose() {
       cancelTimer();
       try {

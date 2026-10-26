@@ -112,17 +112,33 @@ fn collapse_whitespace(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+// File names max out at 255 bytes; leave room for " 99" and the extension.
+const MAX_STEM_BYTES: usize = 200;
+
 pub fn post_file_name(title: &str) -> String {
     let safe = title.trim().replace(['/', ':'], "-");
-    let name = collapse_whitespace(safe.trim_start_matches('.'));
+    let mut name = collapse_whitespace(safe.trim_start_matches('.'));
+    if name.len() > MAX_STEM_BYTES {
+        let mut end = MAX_STEM_BYTES;
+        while !name.is_char_boundary(end) {
+            end -= 1;
+        }
+        name.truncate(end);
+        name.truncate(name.trim_end().len());
+    }
     format!("{}.md", if name.is_empty() { "Untitled" } else { &name })
 }
 
+fn stem_for(title: &str) -> String {
+    let base = post_file_name(title);
+    base.strip_suffix(".md").unwrap_or(&base).to_string()
+}
+
 /// Creates `Name.md` (or `Name 2.md`, ...) holding a draft stub. Never
-/// overwrites: `create_new` fails if the name is taken.
+/// overwrites: `create_new` fails if the name is taken. An empty title gives
+/// `Untitled.md` with an empty `# ` heading for Alex to type into.
 pub fn create_post_at(folder: &Path, title: &str) -> Result<PathBuf, String> {
     let heading = collapse_whitespace(title);
-    let heading = if heading.is_empty() { "Untitled" } else { &heading };
     let contents = format!("---\nstatus: draft\n---\n\n# {heading}\n");
     let base = post_file_name(title);
     let stem = base.strip_suffix(".md").unwrap_or(&base);
@@ -139,6 +155,79 @@ pub fn create_post_at(folder: &Path, title: &str) -> Result<PathBuf, String> {
         }
     }
     unreachable!()
+}
+
+/// True when `name` is `Stem.ext` or `Stem N.ext`: already named for that title.
+fn is_named_for(name: &str, stem: &str, ext: &str) -> bool {
+    let Some(base) = name.strip_suffix(ext).and_then(|b| b.strip_suffix('.')) else { return false };
+    if base == stem {
+        return true;
+    }
+    base.strip_prefix(stem)
+        .and_then(|rest| rest.strip_prefix(' '))
+        .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+}
+
+/// Renames the post at `path` from `from_title` to `title` (`Title.md`, or
+/// `Title 2.md` when that is taken), in the same folder and keeping its
+/// extension. Only a file named for its old title, or still `Untitled`, is
+/// renamed: one Alex named some other way (`2024-05-01-slow.md`) keeps its
+/// name, and so does a symlink, whose target would move out from under it.
+/// Never overwrites. Returns the post's path after.
+pub fn rename_post_at(folder: &Path, path: &Path, from_title: &str, title: &str) -> Result<PathBuf, String> {
+    let meta = std::fs::symlink_metadata(path).map_err(|_| "The post no longer exists.".to_string())?;
+    let source = resolve_post(folder, path)?;
+    if meta.file_type().is_symlink() {
+        return Ok(path.to_path_buf());
+    }
+    if !meta.is_file() {
+        return Err(OUTSIDE.to_string());
+    }
+    let dir = source.parent().ok_or(OUTSIDE)?;
+    let name = source.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let ext = source.extension().map(|e| e.to_string_lossy().into_owned()).unwrap_or_else(|| "md".to_string());
+    let stem = stem_for(title);
+    let follows_title = is_named_for(&name, &stem_for(from_title), &ext) || is_named_for(&name, "Untitled", &ext);
+    if is_named_for(&name, &stem, &ext) || !follows_title {
+        return Ok(source);
+    }
+    for n in 1u32.. {
+        let candidate = if n == 1 { format!("{stem}.{ext}") } else { format!("{stem} {n}.{ext}") };
+        let target = dir.join(&candidate);
+        match rename_exclusive(&source, &target) {
+            Ok(()) => return Ok(target),
+            // On a case-insensitive disk, "hello.md" -> "Hello.md" names the same file.
+            Err(e) if e.kind() == ErrorKind::AlreadyExists && candidate.to_lowercase() == name.to_lowercase() && same_file(&source, &target) => {
+                std::fs::rename(&source, &target).map_err(|e| e.to_string())?;
+                return Ok(target);
+            }
+            Err(e) if e.kind() == ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e.to_string()),
+        }
+    }
+    unreachable!()
+}
+
+/// One atomic rename that fails with AlreadyExists instead of replacing `to`.
+fn rename_exclusive(from: &Path, to: &Path) -> std::io::Result<()> {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+    let from = CString::new(from.as_os_str().as_bytes())?;
+    let to = CString::new(to.as_os_str().as_bytes())?;
+    // SAFETY: both pointers are NUL-terminated strings that outlive the call.
+    if unsafe { libc::renamex_np(from.as_ptr(), to.as_ptr(), libc::RENAME_EXCL) } == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+fn same_file(a: &Path, b: &Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    match (std::fs::symlink_metadata(a), std::fs::symlink_metadata(b)) {
+        (Ok(a), Ok(b)) => a.dev() == b.dev() && a.ino() == b.ino(),
+        _ => false,
+    }
 }
 
 fn render(map: &Map<String, Value>) -> Result<String, String> {
@@ -237,6 +326,12 @@ pub fn clear_posts_folder() -> Result<(), String> {
 #[tauri::command]
 pub fn write_post(path: String, text: String) -> Result<(), String> {
     write_post_at(&current_folder()?, Path::new(&path), &text)
+}
+
+#[tauri::command]
+pub fn rename_post(path: String, from_title: String, title: String) -> Result<String, String> {
+    let path = rename_post_at(&current_folder()?, Path::new(&path), &from_title, &title)?;
+    Ok(path.to_string_lossy().into_owned())
 }
 
 #[tauri::command]
@@ -347,6 +442,8 @@ mod tests {
         assert_eq!(post_file_name("a/b: c"), "a-b- c.md");
         assert_eq!(post_file_name(".hidden"), "hidden.md");
         assert_eq!(post_file_name("  "), "Untitled.md");
+        let long = post_file_name(&"é".repeat(150));
+        assert!(long.len() <= 203 && long.ends_with(".md"));
     }
 
     #[test]
@@ -357,6 +454,85 @@ mod tests {
         assert_eq!(made, dir.path().join("Hello 2.md"));
         assert_eq!(std::fs::read_to_string(dir.path().join("Hello.md")).unwrap(), "mine");
         assert_eq!(std::fs::read_to_string(&made).unwrap(), "---\nstatus: draft\n---\n\n# Hello\n");
+    }
+
+    #[test]
+    fn create_untitled_has_an_empty_heading() {
+        let dir = tempfile::tempdir().unwrap();
+        let made = create_post_at(dir.path(), "").unwrap();
+        assert_eq!(made, dir.path().join("Untitled.md"));
+        assert_eq!(std::fs::read_to_string(&made).unwrap(), "---\nstatus: draft\n---\n\n# \n");
+        assert_eq!(create_post_at(dir.path(), "  ").unwrap(), dir.path().join("Untitled 2.md"));
+    }
+
+    #[test]
+    fn rename_follows_the_title_without_overwriting() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = std::fs::canonicalize(dir.path()).unwrap();
+        let post = folder.join("Untitled.md");
+        std::fs::write(&post, "mine").unwrap();
+        std::fs::write(folder.join("Taken.md"), "theirs").unwrap();
+
+        let renamed = rename_post_at(&folder, &post, "", "Slow software").unwrap();
+        assert_eq!(renamed, folder.join("Slow software.md"));
+        assert!(!post.exists());
+        assert_eq!(std::fs::read_to_string(&renamed).unwrap(), "mine");
+
+        let renamed = rename_post_at(&folder, &renamed, "Slow software", "Taken").unwrap();
+        assert_eq!(renamed, folder.join("Taken 2.md"));
+        assert_eq!(std::fs::read_to_string(folder.join("Taken.md")).unwrap(), "theirs");
+
+        // Already named for its title: left alone.
+        assert_eq!(rename_post_at(&folder, &renamed, "Taken", "Taken").unwrap(), renamed);
+    }
+
+    #[test]
+    fn rename_handles_case_only_changes_and_keeps_the_extension() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = std::fs::canonicalize(dir.path()).unwrap();
+        let post = folder.join("hello.markdown");
+        std::fs::write(&post, "x").unwrap();
+        let renamed = rename_post_at(&folder, &post, "hello", "Hello").unwrap();
+        assert_eq!(renamed, folder.join("Hello.markdown"));
+        let names: Vec<_> = std::fs::read_dir(&folder).unwrap().map(|e| e.unwrap().file_name()).collect();
+        assert_eq!(names, vec![std::ffi::OsString::from("Hello.markdown")]);
+    }
+
+    #[test]
+    fn rename_refuses_outside_and_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = std::fs::canonicalize(dir.path()).unwrap().join("posts");
+        std::fs::create_dir(&folder).unwrap();
+        let outside = folder.parent().unwrap().join("other.md");
+        std::fs::write(&outside, "x").unwrap();
+        assert!(rename_post_at(&folder, &outside, "other", "New").is_err());
+        assert!(outside.exists());
+        assert!(rename_post_at(&folder, &folder.join("gone.md"), "gone", "New").is_err());
+    }
+
+    #[test]
+    fn rename_leaves_files_named_another_way_and_symlinks() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = std::fs::canonicalize(dir.path()).unwrap();
+        let dated = folder.join("2024-05-01-slow-software.md");
+        std::fs::write(&dated, "x").unwrap();
+        assert_eq!(rename_post_at(&folder, &dated, "Slow software", "Slow software, again").unwrap(), dated);
+        assert!(dated.exists());
+
+        let link = folder.join("Alias.md");
+        std::os::unix::fs::symlink(&dated, &link).unwrap();
+        assert_eq!(rename_post_at(&folder, &link, "Alias", "New").unwrap(), link);
+        assert!(link.exists() && dated.exists());
+    }
+
+    #[test]
+    fn names_for_a_title() {
+        assert!(is_named_for("Hello.md", "Hello", "md"));
+        assert!(is_named_for("Hello 12.md", "Hello", "md"));
+        assert!(!is_named_for("Hello 2b.md", "Hello", "md"));
+        assert!(!is_named_for("Hello world.md", "Hello", "md"));
+        assert!(!is_named_for("Hello .md", "Hello", "md"));
+        assert!(!is_named_for("Hello.markdown", "Hello", "md"));
     }
 
     #[test]

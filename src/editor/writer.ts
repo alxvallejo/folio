@@ -5,15 +5,23 @@ import { headingsOf } from "./headings";
 
 const SETEXT_UNDERLINE = /^ {0,3}=+[ \t]*$/;
 
+/** The post's title: its first top-level heading, with the position of that heading's line. */
+export function titleOf(state: EditorState): { text: string; pos: number } | null {
+  const title = headingsOf(state).find((h) => h.level === 1);
+  return title ? { text: title.text.trim(), pos: title.pos } : null;
+}
+
 /**
  * Where the cursor starts in a freshly opened post: the line after the first top-level heading,
- * else the start of the body. Position 0 would sit inside the frontmatter and show it raw.
+ * or the end of that heading when it is empty (a new post), else the start of the body.
+ * Position 0 would sit inside the frontmatter and show it raw.
  */
 export function startPosition(state: EditorState): number {
   const { doc } = state;
-  const title = headingsOf(state).find((h) => h.level === 1);
+  const title = titleOf(state);
   if (title) {
     let line = doc.lineAt(title.pos);
+    if (title.text === "" && line.text.startsWith("#")) return line.to;
     if (line.number < doc.lines && SETEXT_UNDERLINE.test(doc.line(line.number + 1).text)) line = doc.line(line.number + 1);
     return line.number < doc.lines ? doc.line(line.number + 1).from : line.to;
   }

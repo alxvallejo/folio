@@ -1,6 +1,6 @@
 import { isolateHistory } from "@codemirror/commands";
 import { openSearchPanel } from "@codemirror/search";
-import { Compartment, EditorSelection, Prec } from "@codemirror/state";
+import { Compartment, EditorSelection, Prec, Transaction } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { createAutosave, decideDiskChange, type Autosave, type SaveState } from "../editor/autosave";
@@ -9,8 +9,10 @@ import { createEditor, detectLineSeparator, docText } from "../editor/createEdit
 import { headingsOf } from "../editor/headings";
 import { linkKeymap, openLinksOnModClick, pasteLinkHandler, type LinkRequest } from "../editor/links";
 import { frontmatterLabel } from "../editor/livePreview";
-import { replaceChange, startPosition } from "../editor/writer";
+import { titlePlaceholder } from "../editor/titlePlaceholder";
+import { replaceChange, startPosition, titleOf } from "../editor/writer";
 import { api } from "../lib/api";
+import { basename } from "../lib/paths";
 import { readStatus, type PostStatus } from "../posts/frontmatter";
 import { postLabel } from "../posts/posts";
 import type { Heading } from "../render";
@@ -26,6 +28,8 @@ export interface WriterHandle {
   replace(next: string): void;
   openSearch(): void;
   jumpTo(id: string): void;
+  /** Where the post is now: renaming it to follow its title changes this. */
+  path(): string;
   view: EditorView;
 }
 
@@ -40,6 +44,8 @@ interface Props {
   onStatus: (s: PostStatus) => void;
   /** The heading whose section is at the top of the editor, for the contents panel. */
   onActiveHeading: (index: number) => void;
+  /** The file was renamed to follow the title; later saves go to `to`. */
+  onRenamed: (from: string, to: string) => void;
   handleRef: RefObject<WriterHandle | null>;
   notify: (m: string) => void;
 }
@@ -60,8 +66,11 @@ function shownState(autosave: Autosave): SaveState {
   return autosave.isHeld() && state === "unsaved" ? "error" : state;
 }
 
-/** The writing view for one post; render it with `key={path}` so each post gets its own autosave. */
-export function WriteView({ path, diskText, removed, onState, onHeadings, onStatus, onActiveHeading, handleRef, notify }: Props) {
+/**
+ * The writing view for one post; give each opened post its own key (not its path, which changes
+ * when the title renames the file) so each post gets its own autosave.
+ */
+export function WriteView({ path, diskText, removed, onState, onHeadings, onStatus, onActiveHeading, onRenamed, handleRef, notify }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const autosaveRef = useRef<Autosave | null>(null);
   const [view, setView] = useState<EditorView | null>(null);
@@ -81,6 +90,7 @@ export function WriteView({ path, diskText, removed, onState, onHeadings, onStat
   const reportHeadings = useEffectEvent((headings: Heading[]) => onHeadings(headings));
   const reportStatus = useEffectEvent((status: PostStatus) => onStatus(status));
   const reportActive = useEffectEvent((index: number) => onActiveHeading(index));
+  const reportRenamed = useEffectEvent((from: string, to: string) => onRenamed(from, to));
 
   // Layout effect: the contents panel and title switch to this post before the first paint.
   useLayoutEffect(() => {
@@ -97,6 +107,12 @@ export function WriteView({ path, diskText, removed, onState, onHeadings, onStat
     let headings: (Heading & { pos: number })[] = [];
     let outlineTimer = 0;
     let frame = 0;
+    // The file name follows the title: renamed when Alex leaves the title line or the post.
+    let committedTitle = "";
+    let titlePos: number | null = null;
+    let wasOnTitle = false;
+    let renaming: Promise<void> | null = null;
+    let closed = false;
 
     const view = createEditor({
       parent: hostRef.current!,
@@ -115,12 +131,57 @@ export function WriteView({ path, diskText, removed, onState, onHeadings, onStat
         linkKeymap(setLinkRequest),
         openLinksOnModClick((e) => toast(sentence(`Couldn't open link: ${String(e)}`))),
         folioContextMenu(setLinkRequest, (e) => toast(sentence(`Couldn't show the menu: ${String(e)}`))),
+        titlePlaceholder,
+        EditorView.updateListener.of((update) => {
+          if (!update.docChanged && !update.selectionSet) return;
+          if (titlePos !== null) titlePos = update.changes.mapPos(titlePos);
+          // Only Alex's own edits rename: an outside reload or a toolbar edit sets the baseline, so
+          // a title changed in another editor never moves the file out from under it.
+          if (update.docChanged && update.transactions.every((tr) => tr.annotation(Transaction.userEvent) === undefined)) {
+            committedTitle = titleOf(update.state)?.text ?? "";
+          }
+          const onTitle = cursorOnTitle();
+          if (wasOnTitle && !onTitle) void syncFileName();
+          wasOnTitle = onTitle;
+        }),
         // ⌥⌘\ is Folio's contents-panel toggle; stop CodeMirror re-indenting the selection with it.
         // The key still reaches App's shortcut handler.
         Prec.highest(keymap.of([{ key: "Mod-Alt-\\", run: () => true }])),
       ],
     });
 
+    function cursorOnTitle(): boolean {
+      if (titlePos === null) return false;
+      const { doc, selection } = view.state;
+      return doc.lineAt(selection.main.head).number === doc.lineAt(titlePos).number;
+    }
+    /** Renames the file to match the title if it changed. Never rejects; failures are toasted. */
+    function syncFileName(): Promise<void> {
+      if (closed) return Promise.resolve();
+      if (renaming) return renaming.then(syncFileName);
+      const title = titleOf(view.state)?.text ?? "";
+      // Not while the conflict banner holds saves or the file is gone: the move writes first.
+      if (!title || title === committedTitle || autosave.isHeld() || removedRef.current) return Promise.resolve();
+      const from = autosave.path();
+      renaming = autosave
+        .move((p) => api.renamePost(p, committedTitle, title))
+        .then(
+          (to) => {
+            committedTitle = title;
+            if (to !== from) reportRenamed(from, to);
+          },
+          (e) => {
+            // A failed save was already reported, and is retried on the next trigger.
+            if (autosave.state() === "error") return;
+            committedTitle = title;
+            toast(sentence(`Couldn't rename ${basename(from)}: ${String(e)}`));
+          },
+        )
+        .finally(() => {
+          renaming = null;
+        });
+      return renaming;
+    }
     function updateActive() {
       frame = 0;
       const scroller = view.scrollDOM;
@@ -133,9 +194,12 @@ export function WriteView({ path, diskText, removed, onState, onHeadings, onStat
       const next = postLabel(docText(view.state));
       if (view.state.facet(frontmatterLabel) !== next) view.dispatch({ effects: label.reconfigure(frontmatterLabel.of(next)) });
       headings = headingsOf(view.state);
+      titlePos = headings.find((h) => h.level === 1)?.pos ?? null;
       reportHeadings(headings);
       reportStatus(readStatus(docText(view.state)));
       updateActive();
+      // The title changed while the cursor was elsewhere (undo, say).
+      if (!cursorOnTitle()) void syncFileName();
     }
     const onScroll = () => {
       if (!frame) frame = requestAnimationFrame(updateActive);
@@ -145,6 +209,7 @@ export function WriteView({ path, diskText, removed, onState, onHeadings, onStat
       if (!autosave.isHeld()) autosave.flush().catch(() => {});
     };
 
+    committedTitle = titleOf(view.state)?.text ?? "";
     view.dispatch({ selection: EditorSelection.cursor(startPosition(view.state)), scrollIntoView: true });
     view.focus();
     refreshOutline();
@@ -155,8 +220,9 @@ export function WriteView({ path, diskText, removed, onState, onHeadings, onStat
 
     const handle: WriterHandle = {
       view,
-      flush: () => autosave.flush(),
+      flush: () => syncFileName().then(() => autosave.flush()),
       text: () => docText(view.state),
+      path: () => autosave.path(),
       replace: (next) => replaceDoc(view, next),
       openSearch: () => void openSearchPanel(view),
       jumpTo(id) {
@@ -173,6 +239,7 @@ export function WriteView({ path, diskText, removed, onState, onHeadings, onStat
     setView(view);
 
     return () => {
+      closed = true;
       if (handleRef.current === handle) handleRef.current = null;
       window.removeEventListener("blur", onBlur);
       view.scrollDOM.removeEventListener("scroll", onScroll);

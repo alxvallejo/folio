@@ -10,6 +10,8 @@ interface Loaded {
   path: string;
   text: string;
   lossy: boolean;
+  /** Changes when a different file opens, not on reload or rename; keys the writing view. */
+  session: number;
 }
 
 export interface PendingLarge {
@@ -27,6 +29,9 @@ export interface DocumentHandle {
   isEmpty: boolean;
   removed: boolean;
   pendingLarge: PendingLarge | null;
+  session: number;
+  /** The open file was renamed on disk: follow it without reloading. Ignored if `from` isn't open. */
+  rename: (from: string, to: string) => void;
   /** Resolves true once the file is loaded; false if it failed or awaits large-file confirmation. */
   open: (path: string) => Promise<boolean>;
   confirmLarge: () => Promise<boolean>;
@@ -38,6 +43,7 @@ export function useDocument(render: Render | null, themes: ThemePair, notify: (m
   const [removed, setRemoved] = useState(false);
   const [pendingLarge, setPendingLarge] = useState<PendingLarge | null>(null);
   const pathRef = useRef<string | null>(null);
+  const sessionRef = useRef(0);
   const guard = useRef(createRequestGuard()).current;
 
   /** `reload` = background refresh of the open file (never supersedes a user open). */
@@ -60,7 +66,8 @@ export function useDocument(render: Render | null, themes: ThemePair, notify: (m
         pathRef.current = path;
         setPendingLarge(null);
         setRemoved(false);
-        setLoaded({ path, text, lossy });
+        if (!isCurrent) sessionRef.current += 1;
+        setLoaded({ path, text, lossy, session: sessionRef.current });
         return true;
       } catch (e) {
         if (!stale()) notify(`Couldn't open ${basename(path)}: ${String(e)}`);
@@ -96,6 +103,16 @@ export function useDocument(render: Render | null, themes: ThemePair, notify: (m
     [load, pendingLarge],
   );
   const cancelLarge = useCallback(() => setPendingLarge(null), []);
+  const rename = useCallback(
+    (from: string, to: string) => {
+      if (pathRef.current !== from || from === to) return;
+      pathRef.current = to;
+      setRemoved(false);
+      setLoaded((prev) => (prev && prev.path === from ? { ...prev, path: to } : prev));
+      api.watchFile(to).catch((e) => notify(`Live reload is off for ${basename(to)}: ${String(e)}`));
+    },
+    [notify],
+  );
 
   return {
     path: loaded?.path ?? null,
@@ -105,6 +122,8 @@ export function useDocument(render: Render | null, themes: ThemePair, notify: (m
     isEmpty: loaded !== null && loaded.text.trim() === "",
     removed,
     pendingLarge,
+    session: loaded?.session ?? 0,
+    rename,
     open,
     confirmLarge,
     cancelLarge,

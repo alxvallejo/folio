@@ -2,7 +2,7 @@ import { basename } from "../lib/paths";
 
 /**
  * Creates a draft and opens it. Resolves false (after a toast) when the post couldn't be created.
- * Once it exists this resolves true, so the title box closes and a retry can't make "Title 2".
+ * Once it exists this resolves true, even if it didn't open.
  */
 export async function createAndOpenPost(
   title: string,

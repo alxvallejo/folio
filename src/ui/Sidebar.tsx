@@ -1,5 +1,5 @@
 import { ChevronRight, FileText } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Tree, TreeNode } from "../lib/api";
 import { basename } from "../lib/paths";
 import type { PostStatus } from "../posts/frontmatter";
@@ -14,11 +14,9 @@ interface Props {
   statuses?: Map<string, PostStatus>;
   /** Shows "+ New post"; outside the posts folder it opens (or first sets up) the posts folder. */
   onNewPost?: () => void;
-  /** The inline title box, shown under the header while a new post is being named. */
-  newPostBox?: ReactNode;
 }
 
-export function Sidebar({ root, tree, currentPath, onOpen, statuses, onNewPost, newPostBox }: Props) {
+export function Sidebar({ root, tree, currentPath, onOpen, statuses, onNewPost }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -52,7 +50,6 @@ export function Sidebar({ root, tree, currentPath, onOpen, statuses, onNewPost, 
           </button>
         )}
       </div>
-      {newPostBox}
       <div className="sidebar-tree" ref={listRef}>
         {tree && tree.root.children.length > 0 && (
           <ul role="tree">

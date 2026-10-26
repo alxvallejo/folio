@@ -24,9 +24,6 @@ button { font: inherit; color: inherit; }
 .sidebar-header .sidebar-title { min-width: 0; }
 .new-post-button { flex-shrink: 0; padding: 2px 8px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--accent); font-size: 12px; }
 .new-post-button:hover { border-color: var(--accent); }
-.new-post-box { padding: 0 10px 8px; }
-.new-post-box input { width: 100%; box-sizing: border-box; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; font-size: 13px; }
-.new-post-box input:focus { outline: none; border-color: var(--accent); }
 .post-tag { margin-left: auto; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border); font-size: 10px; line-height: 16px; color: var(--muted); }
 .post-tag.draft { border-color: var(--accent); color: var(--accent); }
 .sidebar-title { padding: 12px 14px 8px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

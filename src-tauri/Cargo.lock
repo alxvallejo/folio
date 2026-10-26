@@ -1112,6 +1112,7 @@ name = "folio"
 version = "0.3.0"
 dependencies = [
  "block2",
+ "libc",
  "notify-debouncer-mini",
  "objc2",
  "objc2-app-kit",

@@ -74,6 +74,7 @@ const theme = EditorView.theme({
   ".cm-codeblock .cm-inline-code": { padding: "0", fontSize: "inherit", background: "none" },
   ".cm-codeblock .cm-syntax": { color: "inherit", opacity: ".6" },
   ".cm-frontmatter": { color: "var(--muted)", fontSize: ".86em" },
+  ".cm-title-placeholder": { color: "var(--muted)", opacity: ".6", pointerEvents: "none" },
 
   ".cm-panels": { backgroundColor: "var(--bg)", color: "var(--fg)" },
   ".cm-panels.cm-panels-top": { borderBottom: "1px solid var(--border)" },

@@ -32,6 +32,8 @@ objc2-app-kit = { version = "0.3", default-features = false, features = ["std", 
 objc2-uniform-type-identifiers = { version = "0.3", default-features = false, features = ["std", "UTType"] }
 tauri-plugin-updater = "2"
 tauri-plugin-clipboard-manager = "2.5.0"
+# renamex_np(RENAME_EXCL): renaming a post never replaces another file.
+libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3"

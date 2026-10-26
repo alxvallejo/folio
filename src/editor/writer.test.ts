@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { docText } from "./createEditor";
-import { replaceChange, saveSuffix, startPosition } from "./writer";
+import { replaceChange, saveSuffix, startPosition, titleOf } from "./writer";
 
 const state = (doc: string, lineSeparator?: "\r\n", cursor = 0) =>
   EditorState.create({
@@ -25,6 +25,12 @@ describe("startPosition", () => {
 
   it("skips a setext underline", () => {
     expect(lineAtStart(state("Main\n====\nText"))).toBe("Text");
+  });
+
+  it("puts the cursor in an empty title, after the '# '", () => {
+    const s = state("---\nstatus: draft\n---\n\n# \n");
+    expect(startPosition(s)).toBe(s.doc.length - 1);
+    expect(s.doc.lineAt(startPosition(s)).text).toBe("# ");
   });
 
   it("stays on the title line when nothing follows it", () => {
@@ -77,5 +83,17 @@ describe("saveSuffix", () => {
     expect(saveSuffix("saving")).toBe(" · saving…");
     expect(saveSuffix("unsaved")).toBe(" · saving…");
     expect(saveSuffix("error")).toBe(" · not saved");
+  });
+});
+
+describe("titleOf", () => {
+  it("is the first top-level heading's plain text", () => {
+    const s = state("---\nstatus: draft\n---\n\n## Sub\n# Slow *software*\n# Second\n");
+    expect(titleOf(s)).toEqual({ text: "Slow software", pos: 30 });
+  });
+
+  it("is empty for an empty heading and null without one", () => {
+    expect(titleOf(state("# \nBody"))?.text).toBe("");
+    expect(titleOf(state("Just text"))).toBeNull();
   });
 });

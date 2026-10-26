@@ -47,6 +47,7 @@ pub fn run() {
             posts::clear_posts_folder,
             posts::write_post,
             posts::create_post,
+            posts::rename_post,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Folio");

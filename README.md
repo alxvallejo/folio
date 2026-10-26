@@ -41,7 +41,7 @@ Folio opens the Markdown files in your posts folder for writing (`~/Documents/Fo
 
 <img src="docs/screenshots/writing.png" alt="Writing a post in Folio, with the Riso theme">
 
-- **New post** (⌘N, or the button at the top of the sidebar) asks for a title and creates `<Title>.md` as a draft in the posts folder. If no posts folder is set yet, Folio uses `~/Documents/Folio/Posts`, creating it if needed.
+- **New post** (⌘N, or the button at the top of the sidebar) creates a draft in the posts folder and puts the cursor in its empty title. The file is named after the title, and renamed when you change the title and move off that line. If no posts folder is set yet, Folio uses `~/Documents/Folio/Posts`, creating it if needed.
 - **Autosave** writes about a second after you stop typing, and again when you switch files, leave the window, close it, quit or install an update. The title bar shows saved, saving or not saved.
 - **Links**: ⌘K, right-click, or paste a URL over selected text.
 - **Copy for Substack** (⇧⌘C) puts the post on the clipboard as formatted text, ready to paste into a Substack draft.

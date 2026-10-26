@@ -51,6 +51,8 @@ export const api = {
   writePost: (path: string, text: string) => invoke<void>("write_post", { path, text }),
   /** Creates a draft in the posts folder; resolves with its path. */
   createPost: (title: string) => invoke<string>("create_post", { title }),
+  /** Renames the post to match `title` if its name matched `fromTitle`, never over another file; resolves with its path after. */
+  renamePost: (path: string, fromTitle: string, title: string) => invoke<string>("rename_post", { path, fromTitle, title }),
   /** Tells Rust the webview got the quit request, so its 3 s fallback must not exit under a dialog. */
   quitAcknowledged: () => invoke<void>("quit_acknowledged"),
   /** Exits Folio. Save the open post first. */
