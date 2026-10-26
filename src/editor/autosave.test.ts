@@ -329,3 +329,71 @@ describe("autosave", () => {
     expect(save).toHaveBeenCalledWith("/p/a.md", "old");
   });
 });
+
+describe("own-write detection forgets writes that are no longer on disk", () => {
+  it("a revert to the opening text after a save is not ignored", async () => {
+    const a = createAutosave({ path: "/p/a.md", save: ok(), initialText: "T0", onError: vi.fn() });
+    a.edit("T0 more words");
+    await a.flush();
+    expect(decideDiskChange("T0", a, "T0 more words")).toBe("reload");
+    a.edit("T0 more words!");
+    expect(decideDiskChange("T0", a, "T0 more words!")).toBe("conflict");
+  });
+
+  it("a revert to an earlier save after a later save's echo is not ignored", async () => {
+    const a = createAutosave({ path: "/p/a.md", save: ok(), initialText: "", onError: vi.fn() });
+    a.edit("A");
+    await a.flush();
+    a.edit("B");
+    await a.flush();
+    expect(decideDiskChange("B", a, "B")).toBe("ignore");
+    expect(decideDiskChange("A", a, "B")).toBe("reload");
+  });
+
+  it("still ignores lagging echoes of saves in flight or just finished", async () => {
+    const resolvers: Array<() => void> = [];
+    const save = vi.fn((_p: string, _t: string) => new Promise<void>((r) => resolvers.push(r)));
+    const a = createAutosave({ path: "/p/a.md", save, initialText: "T0", onError: vi.fn() });
+    a.edit("v1");
+    await vi.advanceTimersByTimeAsync(1000);
+    // A re-read before the first save lands still finds the opening text.
+    expect(decideDiskChange("T0", a, "v1")).toBe("ignore");
+    a.edit("v2");
+    expect(decideDiskChange("v1", a, "v2")).toBe("ignore");
+    resolvers[0]();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(save).toHaveBeenCalledTimes(2); // v2 in flight
+    a.edit("v3");
+    expect(decideDiskChange("v1", a, "v3")).toBe("ignore");
+    expect(decideDiskChange("v2", a, "v3")).toBe("ignore");
+    resolvers[1]();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(decideDiskChange("v2", a, "v3")).toBe("ignore");
+    expect(decideDiskChange("v1", a, "v3")).toBe("conflict");
+  });
+
+  it("a repeated outside revert after Keep mine is not ignored", async () => {
+    const a = createAutosave({ path: "/p/a.md", save: ok(), initialText: "", onError: vi.fn() });
+    a.edit("A");
+    await a.flush();
+    a.edit("B");
+    await a.flush();
+    expect(decideDiskChange("B", a, "B")).toBe("ignore");
+    a.edit("B more");
+    expect(decideDiskChange("A", a, "B more")).toBe("conflict");
+    a.hold("A");
+    a.release(); // Keep mine
+    await a.flush();
+    expect(decideDiskChange("B more", a, "B more")).toBe("ignore");
+    expect(decideDiskChange("A", a, "B more")).toBe("reload");
+  });
+
+  it("an outside write back to an own save after a reload is not ignored", async () => {
+    const a = createAutosave({ path: "/p/a.md", save: ok(), initialText: "", onError: vi.fn() });
+    a.edit("B");
+    await a.flush();
+    expect(decideDiskChange("C", a, "B")).toBe("reload");
+    a.markSaved("C");
+    expect(decideDiskChange("B", a, "C")).toBe("reload");
+  });
+});

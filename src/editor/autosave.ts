@@ -7,9 +7,12 @@ export interface Autosave {
   flush(): Promise<void>;
   state(): SaveState;
   subscribe(fn: () => void): () => void;
-  /** True when diskText is one of the last few texts this instance wrote. */
+  /**
+   * True when diskText is one of the last few texts this instance wrote that can still be on disk.
+   * A match forgets the writes before it: a re-read always returns the newest write.
+   */
   isOwnWrite(diskText: string): boolean;
-  /** The editor now shows text that is already on disk (after a reload). */
+  /** The editor now shows text that is already on disk (after a reload); earlier writes are forgotten. */
   markSaved(text: string): void;
   /**
    * Someone else wrote `diskText`: stop timed saves (edits are kept, not written) until release(),
@@ -57,7 +60,10 @@ export function createAutosave(opts: Options): Autosave {
   let errored = false;
   let disposed = false;
   let held = false;
+  // Oldest first. Starts with the opening text, which only stays until the first save lands.
   let recent: string[] = [opts.initialText];
+  let openingInRecent = true;
+  let inFlight: string | null = null;
   const listeners = new Set<() => void>();
 
   function setState(next: SaveState) {
@@ -88,10 +94,16 @@ export function createAutosave(opts: Options): Autosave {
     }
     setState("saving");
     // Record before writing: the watcher can report the file before save resolves.
-    recent = [...recent, text].slice(-OWN_WRITES);
+    recent = [...recent, text];
+    if (recent.length > OWN_WRITES) {
+      recent = recent.slice(-OWN_WRITES);
+      openingInRecent = false;
+    }
+    inFlight = text;
     try {
       await save(path, text);
     } catch (err) {
+      inFlight = null;
       const first = !errored;
       errored = true;
       try {
@@ -101,6 +113,12 @@ export function createAutosave(opts: Options): Autosave {
       }
       // flush() and dispose() callers need to know the write failed.
       throw err;
+    }
+    inFlight = null;
+    // The opening text can't come back from a re-read now, only from someone else's write.
+    if (openingInRecent) {
+      recent = recent.slice(1);
+      openingInRecent = false;
     }
     lastSaved = text;
     errored = false;
@@ -136,9 +154,21 @@ export function createAutosave(opts: Options): Autosave {
       listeners.add(fn);
       return () => listeners.delete(fn);
     },
-    isOwnWrite: (diskText) => recent.includes(diskText),
+    isOwnWrite(diskText) {
+      const i = recent.lastIndexOf(diskText);
+      if (i < 0) return false;
+      // Disk has reached this write, so the ones before it can only come back from someone else.
+      if (i > 0) {
+        recent = recent.slice(i);
+        openingInRecent = false;
+      }
+      return true;
+    },
     markSaved(text) {
       cancelTimer();
+      // Disk holds `text`, newer than everything written before except a write still in flight.
+      recent = inFlight === null ? [] : [inFlight];
+      openingInRecent = false;
       latest = text;
       lastSaved = text;
       errored = false;
