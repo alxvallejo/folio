@@ -150,6 +150,13 @@ describe("createRenderer", () => {
     expect(html("---\nIntro\n---\n")).toContain("Intro");
   });
 
+  it("shows a block with no key lines, so a heading between rules isn't hidden", () => {
+    const out = html("---\n# Heading\n---\nbody");
+    expect(out).toContain("<h1");
+    expect(out).toContain("Heading");
+    expect(out).toContain("body");
+  });
+
   it("renders the GFM fixture", async () => {
     await expect(html(fixture, "/specs")).toMatchFileSnapshot("./__snapshots__/gfm.html");
   });

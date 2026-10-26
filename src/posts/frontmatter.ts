@@ -32,7 +32,8 @@ export function findFrontmatter(text: string): Frontmatter | null | "unparseable
   for (let i = 1; i < all.length; i++) {
     const line = content(all[i]);
     end += all[i].length;
-    if (line === "---" || line === "...") return { start: 0, end, lines };
+    // A block needs a key; rules around a heading or blank lines are just Markdown.
+    if (line === "---" || line === "...") return lines.some((l) => KEY_LINE.test(l)) ? { start: 0, end, lines } : null;
     if (!isFrontmatterLine(line)) return null;
     lines.push(line);
   }
@@ -72,6 +73,8 @@ export function setStatus(
   if (fm === "unparseable") return { ok: false };
 
   if (fm === null) {
+    // Starts with a fence we can't read as frontmatter: adding a block above it would stack two.
+    if (content(splitLines(text)[0] ?? "") === "---") return { ok: false };
     const eol = eolOf(splitLines(text)[0] ?? "") === "\r\n" ? "\r\n" : "\n";
     const published = status === "published" ? `published: ${today}${eol}` : "";
     return { ok: true, text: `---${eol}status: ${status}${eol}${published}---${eol}${eol}${text}` };

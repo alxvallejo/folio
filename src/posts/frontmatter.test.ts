@@ -47,5 +47,22 @@ describe("frontmatter", () => {
     expect(findFrontmatter("---\nstatus: draft\ntitle: x\n")).toBe("unparseable");
     expect(setStatus("---\nstatus: draft\ntitle: x\n", "published", "2026-10-26")).toEqual({ ok: false });
   });
+  it("needs at least one key line to count as frontmatter", () => {
+    expect(findFrontmatter("---\n# Heading\n---\nbody")).toBeNull();
+    expect(findFrontmatter("---\n\n# just a comment\n\n---\nbody")).toBeNull();
+    expect(findFrontmatter("---\n---\nbody")).toBeNull();
+    expect(findFrontmatter("---\n# note\ntitle: X\n---\nbody")).not.toBeNull();
+  });
+  it("refuses to add a second block over a fenced block it can't read", () => {
+    for (const text of [
+      '---\n"og:title": x\n---\nbody',
+      "---\nseo.title: x\n---\nbody",
+      "---\ntítulo: x\n---\nbody",
+      "---\n# Heading\n---\nbody",
+    ]) {
+      expect(setStatus(text, "published", "2026-10-26")).toEqual({ ok: false });
+      expect(setStatus(text, "draft", "2026-10-26")).toEqual({ ok: false });
+    }
+  });
   it("formats local dates", () => expect(localDate(new Date(2026, 0, 5))).toBe("2026-01-05"));
 });
