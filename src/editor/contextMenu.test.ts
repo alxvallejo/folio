@@ -20,7 +20,7 @@ function setup(doc: string) {
   const open = vi.fn<(req: LinkRequest) => void>();
   const view = createEditor({ parent: document.body, doc, lineSeparator: "\n", onDocChange: () => {}, extensions: [folioContextMenu(open, vi.fn())] });
   // jsdom has no layout, so there is never a link under the pointer.
-  view.posAtCoords = () => null;
+  vi.spyOn(view, "posAtCoords").mockReturnValue(null as unknown as number);
   const select = (from: number, to = from) => view.dispatch({ selection: EditorSelection.single(from, to) });
   const fire = (type: string, init: MouseEventInit = {}) => {
     const event = new MouseEvent(type, { bubbles: true, cancelable: true, ...init });
