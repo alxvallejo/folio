@@ -8,6 +8,7 @@ pub fn action_for(id: &str) -> Option<&'static str> {
     match id {
         "new-post" => Some("new-post"),
         "open-posts" => Some("open-posts"),
+        "copy-for-substack" => Some("copy-for-substack"),
         _ => None,
     }
 }
@@ -36,6 +37,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let new_post = MenuItemBuilder::with_id("new-post", "New Post").accelerator("CmdOrCtrl+N").build(app)?;
     let open_posts = MenuItemBuilder::with_id("open-posts", "Open Posts…").accelerator("CmdOrCtrl+Shift+P").build(app)?;
     let file = SubmenuBuilder::new(app, "File").item(&new_post).item(&open_posts).build()?;
+    let copy_for_substack = MenuItemBuilder::with_id("copy-for-substack", "Copy for Substack").accelerator("CmdOrCtrl+Shift+C").build(app)?;
     let edit = SubmenuBuilder::new(app, "Edit")
         .undo()
         .redo()
@@ -43,6 +45,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
         .cut()
         .copy()
         .paste()
+        .item(&copy_for_substack)
         .select_all()
         .build()?;
     let view = SubmenuBuilder::new(app, "View").fullscreen().build()?;
@@ -72,6 +75,7 @@ mod tests {
     fn maps_menu_actions() {
         assert_eq!(action_for("new-post"), Some("new-post"));
         assert_eq!(action_for("open-posts"), Some("open-posts"));
+        assert_eq!(action_for("copy-for-substack"), Some("copy-for-substack"));
         assert_eq!(action_for("check-for-updates"), None);
     }
 }

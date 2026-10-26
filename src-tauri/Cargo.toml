@@ -31,6 +31,7 @@ objc2-foundation = { version = "0.3", default-features = false, features = ["std
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSWorkspace", "block2", "objc2-uniform-type-identifiers"] }
 objc2-uniform-type-identifiers = { version = "0.3", default-features = false, features = ["std", "UTType"] }
 tauri-plugin-updater = "2"
+tauri-plugin-clipboard-manager = "2.5.0"
 
 [dev-dependencies]
 tempfile = "3"

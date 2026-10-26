@@ -1,6 +1,7 @@
 import { PanelLeft, PanelRight, Search, Settings2, SquarePen } from "lucide-react";
 import type { SaveState } from "../editor/autosave";
 import { saveSuffix } from "../editor/writer";
+import type { PostStatus } from "../posts/frontmatter";
 import { THEMES, type ThemeId } from "../themes/catalog";
 
 interface Props {
@@ -22,6 +23,8 @@ interface Props {
   onToggleToc: () => void;
   settingsOpen: boolean;
   onSettings: () => void;
+  /** Writing mode: the post's status and what its buttons do. */
+  post?: { status: PostStatus; onCopy: () => void; onToggleStatus: () => void };
 }
 
 export function Toolbar(props: Props) {
@@ -47,6 +50,16 @@ export function Toolbar(props: Props) {
           </option>
         ))}
       </select>
+      {props.post && (
+        <>
+          <button className="text-button" title="Copy for Substack (⇧⌘C)" onClick={props.post.onCopy}>
+            Copy for Substack
+          </button>
+          <button className="text-button solid" onClick={props.post.onToggleStatus}>
+            {props.post.status === "published" ? "Mark as draft" : "Mark published"}
+          </button>
+        </>
+      )}
       <button className="icon-button" title="Find (⌘F)" disabled={!props.hasDocument} onClick={props.onFind}>
         <Search size={16} />
       </button>

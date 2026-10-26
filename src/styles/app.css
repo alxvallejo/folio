@@ -45,6 +45,9 @@ button { font: inherit; color: inherit; }
 .toolbar-title { flex: 1; min-width: 0; text-align: center; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .theme-select { font: inherit; color: var(--muted); background: none; border: 1px solid transparent; border-radius: 6px; padding: 3px 6px; }
 .theme-select:hover { border-color: var(--border); }
+.text-button { flex-shrink: 0; margin: 0 2px; padding: 3px 10px; border: 1px solid var(--border); border-radius: 6px; background: none; color: var(--fg); font: inherit; font-size: 12px; white-space: nowrap; }
+.text-button:hover { border-color: var(--accent); }
+.text-button.solid { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .icon-button { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--muted); }
 .icon-button:hover:not(:disabled) { background: color-mix(in srgb, var(--fg) 8%, transparent); color: var(--fg); }
 .icon-button[aria-pressed="true"] { color: var(--link); }

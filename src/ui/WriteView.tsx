@@ -11,6 +11,7 @@ import { linkKeymap, openLinksOnModClick, pasteLinkHandler, type LinkRequest } f
 import { frontmatterLabel } from "../editor/livePreview";
 import { replaceChange, startPosition } from "../editor/writer";
 import { api } from "../lib/api";
+import { readStatus, type PostStatus } from "../posts/frontmatter";
 import { postLabel } from "../posts/posts";
 import type { Heading } from "../render";
 import { ConflictBanner } from "./ConflictBanner";
@@ -35,6 +36,8 @@ interface Props {
   removed: boolean;
   onState: (s: SaveState) => void;
   onHeadings: (h: Heading[]) => void;
+  /** The post's status as the editor text has it, for the toolbar button. */
+  onStatus: (s: PostStatus) => void;
   /** The heading whose section is at the top of the editor, for the contents panel. */
   onActiveHeading: (index: number) => void;
   handleRef: RefObject<WriterHandle | null>;
@@ -58,7 +61,7 @@ function shownState(autosave: Autosave): SaveState {
 }
 
 /** The writing view for one post; render it with `key={path}` so each post gets its own autosave. */
-export function WriteView({ path, diskText, removed, onState, onHeadings, onActiveHeading, handleRef, notify }: Props) {
+export function WriteView({ path, diskText, removed, onState, onHeadings, onStatus, onActiveHeading, handleRef, notify }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const autosaveRef = useRef<Autosave | null>(null);
   const [view, setView] = useState<EditorView | null>(null);
@@ -76,6 +79,7 @@ export function WriteView({ path, diskText, removed, onState, onHeadings, onActi
   const toast = useEffectEvent((message: string) => notify(message));
   const reportState = useEffectEvent((state: SaveState) => onState(state));
   const reportHeadings = useEffectEvent((headings: Heading[]) => onHeadings(headings));
+  const reportStatus = useEffectEvent((status: PostStatus) => onStatus(status));
   const reportActive = useEffectEvent((index: number) => onActiveHeading(index));
 
   // Layout effect: the contents panel and title switch to this post before the first paint.
@@ -128,6 +132,7 @@ export function WriteView({ path, diskText, removed, onState, onHeadings, onActi
       if (view.state.facet(frontmatterLabel) !== next) view.dispatch({ effects: label.reconfigure(frontmatterLabel.of(next)) });
       headings = headingsOf(view.state);
       reportHeadings(headings);
+      reportStatus(readStatus(docText(view.state)));
       updateActive();
     }
     const onScroll = () => {

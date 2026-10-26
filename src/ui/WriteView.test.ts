@@ -33,6 +33,7 @@ function render(diskText: string, removed = false) {
         removed,
         onState: (s) => states.push(s),
         onHeadings: () => {},
+        onStatus: () => {},
         onActiveHeading: () => {},
         handleRef: handle,
         notify,

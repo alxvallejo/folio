@@ -3,13 +3,16 @@ import { homeDir } from "@tauri-apps/api/path";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ask, open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { writeHtml } from "@tauri-apps/plugin-clipboard-manager";
 import { check } from "@tauri-apps/plugin-updater";
 import { type ReactNode, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ASK_DELAY_MS, askOnFirstLaunch } from "../defaultApp/defaultApp";
 import { api, events, type DefaultApp } from "../lib/api";
 import { abbreviateHome, basename, expandHome } from "../lib/paths";
 import type { SaveState } from "../editor/autosave";
+import { localDate, readStatus, setStatus, type PostStatus } from "../posts/frontmatter";
 import { isPostPath, writingModeFor } from "../posts/posts";
+import { copyMessage, toSubstack } from "../posts/substack";
 import type { Heading } from "../render";
 import { DEFAULT_FONT_SIZE } from "../settings/schema";
 import { shikiThemeName } from "../render/shikiThemes";
@@ -91,6 +94,7 @@ export function App() {
   const writing = doc.path !== null && writingModeFor(doc.path, postsFolder, doc.lossy);
   const writerRef = useRef<WriterHandle | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("saved");
+  const [postStatus, setPostStatus] = useState<PostStatus>("draft");
   const [writingHeadings, setWritingHeadings] = useState<Heading[]>([]);
   const [activeHeading, setActiveHeading] = useState(0);
   const jumpToHeading = useCallback((id: string) => writerRef.current?.jumpTo(id), []);
@@ -238,7 +242,34 @@ export function App() {
     setNewPostOpen(true);
   }, [inPostsFolder, ensurePostsFolder]);
 
+  /** Puts the open post on the clipboard as formatted text for pasting into Substack. */
+  const copyForSubstack = useCallback(async () => {
+    const writer = writerRef.current;
+    if (!writer) return;
+    const r = toSubstack(writer.text());
+    try {
+      await writeHtml(r.html, r.text);
+      notify(copyMessage(r));
+    } catch (e) {
+      notify(`Couldn't copy: ${String(e).replace(/\.$/, "")}.`);
+    }
+  }, [notify]);
+  /** Flips draft and published in the post's frontmatter as one undoable edit; autosave writes it. */
+  const toggleStatus = useCallback(() => {
+    const writer = writerRef.current;
+    if (!writer) return;
+    const text = writer.text();
+    const next = readStatus(text) === "published" ? "draft" : "published";
+    const result = setStatus(text, next, localDate(new Date()));
+    if (!result.ok) notify("This post's frontmatter couldn't be read. Fix it by hand to change its status.");
+    else writer.replace(result.text);
+  }, [notify]);
+
   const onMenuAction = useEffectEvent((id: string) => {
+    if (id === "copy-for-substack") {
+      if (writing) void copyForSubstack();
+      return;
+    }
     if (id === "new-post") void startNewPost();
     else if (id === "open-posts") void openPosts();
   });
@@ -396,6 +427,7 @@ export function App() {
         removed={doc.removed}
         onState={setSaveState}
         onHeadings={setWritingHeadings}
+        onStatus={setPostStatus}
         onActiveHeading={setActiveHeading}
         handleRef={writerRef}
         notify={notify}
@@ -445,6 +477,7 @@ export function App() {
         <Toolbar
           title={doc.path ? basename(doc.path) : "Folio"}
           saveState={writing ? saveState : undefined}
+          post={writing ? { status: postStatus, onCopy: () => void copyForSubstack(), onToggleStatus: toggleStatus } : undefined}
           theme={shownTheme}
           themes={themesFor(appearance)}
           onTheme={(theme) => updateSettings(appearance === "light" ? { lightTheme: theme } : { darkTheme: theme })}
