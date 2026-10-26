@@ -282,7 +282,7 @@ describe("autosave", () => {
     const save = ok();
     const a = createAutosave({ path: "/p/a.md", save, initialText: "", onError: vi.fn() });
     a.edit("mine");
-    a.hold();
+    a.hold("");
     a.edit("mine more");
     await vi.advanceTimersByTimeAsync(5000);
     expect(save).not.toHaveBeenCalled();
@@ -295,7 +295,7 @@ describe("autosave", () => {
   it("release resumes timed saves of the held text", async () => {
     const save = ok();
     const a = createAutosave({ path: "/p/a.md", save, initialText: "", onError: vi.fn() });
-    a.hold();
+    a.hold("");
     a.edit("mine");
     await vi.advanceTimersByTimeAsync(2000);
     expect(save).not.toHaveBeenCalled();
@@ -309,8 +309,23 @@ describe("autosave", () => {
     const save = ok();
     const a = createAutosave({ path: "/p/a.md", save, initialText: "", onError: vi.fn() });
     a.edit("last words");
-    a.hold();
+    a.hold("");
     await a.dispose();
     expect(save).toHaveBeenCalledWith("/p/a.md", "last words");
+  });
+
+  it("hold compares against the outside text, so returning to the old text is still unsaved", async () => {
+    const save = ok();
+    const a = createAutosave({ path: "/p/a.md", save, initialText: "old", onError: vi.fn() });
+    a.edit("mine");
+    a.hold("theirs");
+    expect(a.state()).toBe("unsaved");
+    a.edit("old"); // undo back to the last save
+    expect(a.state()).toBe("unsaved");
+    a.edit("theirs");
+    expect(a.state()).toBe("saved");
+    a.edit("old");
+    await a.flush();
+    expect(save).toHaveBeenCalledWith("/p/a.md", "old");
   });
 });

@@ -119,8 +119,8 @@ describe("WriteView", () => {
     await advance(2000);
     expect(writer().text()).toBe(outside);
     expect(banner()).toBeNull();
-    expect(writePost).toHaveBeenLastCalledWith(PATH, outside);
-    expect(writePost).not.toHaveBeenCalledWith(PATH, expect.stringContaining("Body mine"));
+    // The disk already holds the outside version and Alex's text never went there.
+    expect(writePost).not.toHaveBeenCalled();
     expect(states[states.length - 1]).toBe("saved");
     // Alex's text is one undo away.
     act(() => void undo(writer().view));
@@ -159,10 +159,9 @@ describe("WriteView", () => {
     render(outside);
     await advance(2000);
     click("Use the disk version");
-    await advance(0);
+    await advance(2000);
     expect(writer().text()).toBe(outside);
-    expect(writePost).toHaveBeenCalledTimes(1);
-    expect(writePost).toHaveBeenLastCalledWith(PATH, outside);
+    expect(writePost).not.toHaveBeenCalled(); // the disk still holds the outside version
     expect(states[states.length - 1]).toBe("saved");
   });
 
@@ -221,5 +220,70 @@ describe("WriteView", () => {
     expect(writePost).not.toHaveBeenCalled();
     expect(states[states.length - 1]).toBe("error");
     await expect(writer().flush()).rejects.toThrow();
+  });
+
+  it("after undoing back to the last save, a second outside change updates the banner and nothing is lost", async () => {
+    render(CRLF_POST);
+    type(" mine");
+    render(CRLF_POST.replace("Body", "Theirs"));
+    act(() => void undo(writer().view));
+    expect(writer().text()).toBe(CRLF_POST);
+    await advance(2000);
+    expect(writePost).not.toHaveBeenCalled();
+    expect(states[states.length - 1]).toBe("error"); // Alex's text isn't what's on disk
+    const second = CRLF_POST.replace("Body", "Theirs, edited");
+    render(second);
+    expect(banner()).not.toBeNull();
+    click("Use the disk version");
+    await advance(2000);
+    expect(writer().text()).toBe(second);
+    expect(writePost).not.toHaveBeenCalled();
+  });
+
+  it("after undoing back to the last save, leaving writes Alex's text", async () => {
+    render(CRLF_POST);
+    type(" mine");
+    render(CRLF_POST.replace("Body", "Theirs"));
+    act(() => void undo(writer().view));
+    await act(() => writer().flush());
+    expect(writePost).toHaveBeenLastCalledWith(PATH, CRLF_POST);
+  });
+
+  it("reloads a newer outside change once Alex's save has landed, and saves again after", async () => {
+    let finish!: () => void;
+    render(CRLF_POST);
+    type(" mine");
+    writePost.mockImplementationOnce(() => new Promise<void>((resolve) => (finish = resolve)));
+    await advance(1000); // Alex's save starts and hangs
+    render(CRLF_POST.replace("Body", "Theirs"));
+    expect(banner()).not.toBeNull();
+    await act(async () => finish()); // it lands: Alex's text is on disk
+    const second = CRLF_POST.replace("Body", "Theirs again");
+    render(second);
+    expect(writer().text()).toBe(second);
+    expect(banner()).toBeNull();
+    type(" plus", "Theirs again");
+    await advance(1000);
+    expect(writePost).toHaveBeenLastCalledWith(PATH, CRLF_POST.replace("Body", "Theirs again plus"));
+  });
+
+  it("keeps what Alex types while Use the disk version is writing", async () => {
+    const finish: (() => void)[] = [];
+    const hang = () => new Promise<void>((resolve) => finish.push(resolve));
+    render(CRLF_POST);
+    type(" mine");
+    writePost.mockImplementationOnce(hang).mockImplementationOnce(hang);
+    await advance(1000); // Alex's save starts and hangs
+    const outside = CRLF_POST.replace("Body", "Theirs");
+    render(outside);
+    click("Use the disk version");
+    await act(async () => finish[0]()); // Alex's save lands; writing the disk version back starts
+    expect(writePost).toHaveBeenLastCalledWith(PATH, outside);
+    type(" new", "Theirs"); // typed while that write is in flight
+    await act(async () => finish[1]());
+    await advance(1000);
+    expect(writer().text()).toBe(CRLF_POST.replace("Body", "Theirs new"));
+    expect(writePost).toHaveBeenLastCalledWith(PATH, CRLF_POST.replace("Body", "Theirs new"));
+    expect(states[states.length - 1]).toBe("saved");
   });
 });

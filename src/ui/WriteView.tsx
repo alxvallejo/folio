@@ -190,11 +190,18 @@ export function WriteView({ path, diskText, removed, onState, onHeadings, onActi
     if (decision === "conflict") {
       // Hold timed saves so the outside version stays on disk until Alex chooses. Leaving the
       // post (switch, quit, close, install) still flushes, which keeps his text.
-      autosave.hold();
+      autosave.hold(diskText);
       setConflict(diskText);
       onState(shownState(autosave));
     } else if (decision === "reload") {
-      // Only when everything is saved, so no save is pending or in flight.
+      // Only when everything is saved, so no save is pending or in flight. With the banner up,
+      // "saved" means Alex's text is on disk (his save landed) or he's back to the version the
+      // banner offered; either way this newer outside version is a plain reload, and the
+      // banner's older offer is stale.
+      if (autosave.isHeld()) {
+        autosave.release();
+        setConflict(null);
+      }
       replaceDoc(view, diskText);
       autosave.markSaved(diskText);
     } else if (autosave.isHeld() && diskText === editorText && !autosave.isOwnWrite(diskText)) {
@@ -213,14 +220,10 @@ export function WriteView({ path, diskText, removed, onState, onHeadings, onActi
     replaceDoc(view, conflict);
     autosave.edit(conflict); // already done by the doc change, unless the editor showed it anyway
     view.focus();
-    // Write the disk version back: a save in flight (or one made before the hold) may have put
-    // Alex's text on disk. A failure is reported through onError and the title.
-    try {
-      await autosave.flush();
-    } catch {
-      return;
-    }
-    autosave.markSaved(conflict);
+    // Write the disk version back if a save in flight put Alex's text on disk. Anything typed
+    // meanwhile is an ordinary edit and autosaves after it. A failure is reported through
+    // onError and the title.
+    await autosave.flush().catch(() => {});
   };
 
   const keepMine = () => {
@@ -228,10 +231,7 @@ export function WriteView({ path, diskText, removed, onState, onHeadings, onActi
     if (!view || !autosave || conflict === null) return;
     setConflict(null);
     autosave.release();
-    // Record the disk version as the last save so the editor text always counts as a change,
-    // then write it over the disk version now.
-    autosave.markSaved(conflict);
-    autosave.edit(docText(view.state));
+    // The hold compares against the disk version, so this writes the editor text over it.
     autosave.flush().catch(() => {});
     view.focus();
   };

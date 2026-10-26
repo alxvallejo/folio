@@ -11,8 +11,12 @@ export interface Autosave {
   isOwnWrite(diskText: string): boolean;
   /** The editor now shows text that is already on disk (after a reload). */
   markSaved(text: string): void;
-  /** Stops timed saves (edits are kept, not written) until release(). flush() and dispose() still write. */
-  hold(): void;
+  /**
+   * Someone else wrote `diskText`: stop timed saves (edits are kept, not written) until release(),
+   * and compare against `diskText` from now on, so "saved" means the editor matches the disk.
+   * flush() and dispose() still write.
+   */
+  hold(diskText: string): void;
   release(): void;
   isHeld(): boolean;
   dispose(): Promise<void>;
@@ -140,9 +144,12 @@ export function createAutosave(opts: Options): Autosave {
       errored = false;
       setState("saved");
     },
-    hold() {
+    hold(diskText) {
       held = true;
       cancelTimer();
+      lastSaved = diskText;
+      // A save in flight sets lastSaved again when it lands; until then the state stays "saving".
+      if (current !== "saving") setState(latest === diskText ? "saved" : "unsaved");
     },
     release() {
       held = false;
