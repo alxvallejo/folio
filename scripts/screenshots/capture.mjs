@@ -20,6 +20,7 @@ const SHOTS = [
   { name: "citrus", light: "citrus", appearance: "light" },
   { name: "terracotta", light: "terracotta", appearance: "light" },
   { name: "neon-noir", dark: "neon-noir", appearance: "dark" },
+  { name: "writing", light: "riso", appearance: "light", writing: "1", title: "Slow software.md" },
 ];
 
 const server = await createServer({ root, configFile: `${root}vite.config.ts`, server: { port: 1430, strictPort: true }, logLevel: "warn" });
@@ -28,12 +29,12 @@ const browser = await webkit.launch();
 mkdirSync(outDir, { recursive: true });
 
 try {
-  for (const { name, settings, ...query } of SHOTS) {
+  for (const { name, settings, title: shotTitle, ...query } of SHOTS) {
     const page = await browser.newPage({ viewport: { width: 1400, height: 1000 }, deviceScaleFactor: 2, colorScheme: query.appearance });
     page.on("pageerror", (e) => console.error(`${name}: ${e.message}`));
-    await page.goto(`http://localhost:1430/scripts/screenshots/frame.html?${new URLSearchParams({ ...query, title })}`);
+    await page.goto(`http://localhost:1430/scripts/screenshots/frame.html?${new URLSearchParams({ ...query, title: shotTitle ?? title })}`);
     const app = page.frameLocator("#app");
-    await app.locator(".prose h2").first().waitFor();
+    await app.locator(query.writing ? ".cm-content" : ".prose h2").first().waitFor();
     if (settings) await app.locator('button[title^="Settings"]').click();
     // Fonts and Shiki highlighting finish after the first paint.
     await page.waitForTimeout(1200);

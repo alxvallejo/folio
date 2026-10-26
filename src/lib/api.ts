@@ -49,6 +49,10 @@ export const api = {
   writePost: (path: string, text: string) => invoke<void>("write_post", { path, text }),
   /** Creates a draft in the posts folder; resolves with its path. */
   createPost: (title: string) => invoke<string>("create_post", { title }),
+  /** Tells Rust the webview got the quit request, so its 3 s fallback must not exit under a dialog. */
+  quitAcknowledged: () => invoke<void>("quit_acknowledged"),
+  /** Exits Folio. Save the open post first. */
+  quit: () => invoke<void>("quit"),
   defaultMarkdownApp: () => invoke<DefaultApp>("default_markdown_app"),
   /** Shows the macOS confirmation dialog; resolves when the user answers. */
   makeDefaultMarkdownApp: () => invoke<"made" | "declined">("make_default_markdown_app"),

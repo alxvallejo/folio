@@ -270,11 +270,31 @@ export function App() {
       if (writing) void copyForSubstack();
       return;
     }
+    if (id === "quit") {
+      // Acknowledge first so Rust's 3 s fallback doesn't exit under a Leave/Stay dialog.
+      void api.quitAcknowledged();
+      void leaveOpenPost().then((left) => {
+        if (left) void api.quit();
+      });
+      return;
+    }
     if (id === "new-post") void startNewPost();
     else if (id === "open-posts") void openPosts();
   });
   useEffect(() => {
     const unlisten = events.onMenuAction((id) => onMenuAction(id));
+    return () => void unlisten.then((stop) => stop());
+  }, []);
+
+  // Closing the window saves the open post first; Stay on a failed save keeps the window open.
+  const onCloseRequested = useEffectEvent(async () => {
+    if (await leaveOpenPost()) await getCurrentWindow().destroy();
+  });
+  useEffect(() => {
+    const unlisten = getCurrentWindow().onCloseRequested((event) => {
+      event.preventDefault();
+      void onCloseRequested();
+    });
     return () => void unlisten.then((stop) => stop());
   }, []);
 
@@ -497,7 +517,11 @@ export function App() {
           state={updateState}
           onWhatsNew={(version) => openUrl(releaseNotesUrl(version)).catch((e) => notify(`Couldn't open link: ${String(e)}`))}
           onLater={updater.dismiss}
-          onInstall={() => void updater.install(doc.path)}
+          onInstall={() =>
+            void leaveOpenPost().then((left) => {
+              if (left) void updater.install(doc.path);
+            })
+          }
         />
         <div className={writing ? "doc-scroll writing" : "doc-scroll"} ref={scrollRef}>
           {body}
