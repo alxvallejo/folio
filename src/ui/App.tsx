@@ -8,6 +8,7 @@ import { type ReactNode, useCallback, useEffect, useEffectEvent, useLayoutEffect
 import { ASK_DELAY_MS, askOnFirstLaunch } from "../defaultApp/defaultApp";
 import { api, events, type DefaultApp } from "../lib/api";
 import { abbreviateHome, basename, expandHome } from "../lib/paths";
+import { isPostPath } from "../posts/posts";
 import { DEFAULT_FONT_SIZE } from "../settings/schema";
 import { shikiThemeName } from "../render/shikiThemes";
 import { createSettingsStore } from "../settings/store";
@@ -17,6 +18,7 @@ import { createUpdater, releaseNotesUrl } from "../update/updater";
 import { DocumentView, LargeFilePrompt } from "./DocumentView";
 import { EmptyState } from "./EmptyState";
 import { FindBar } from "./FindBar";
+import { NewPostBox } from "./NewPostBox";
 import { scrollToFragment } from "./scroll";
 import { SettingsPanel } from "./SettingsPanel";
 import { actionFor, type Action } from "./shortcuts";
@@ -27,6 +29,7 @@ import { Toolbar } from "./Toolbar";
 import { UpdateBanner } from "./UpdateBanner";
 import { useDocument } from "./useDocument";
 import { useFolder } from "./useFolder";
+import { usePostStatuses } from "./usePostStatuses";
 import { useRenderer } from "./useRenderer";
 import { useSystemDark } from "./useSystemDark";
 
@@ -67,6 +70,23 @@ export function App() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [fragment, setFragment] = useState<string | null>(null);
   const clearFragment = useCallback(() => setFragment(null), []);
+
+  // Posts folder: the canonical path from Rust, re-read whenever config.json changes.
+  const [postsFolder, setPostsFolder] = useState<string | null>(null);
+  const refreshPostsFolder = useCallback(() => {
+    api.postsFolder().then(setPostsFolder, () => setPostsFolder(null));
+  }, []);
+  useEffect(() => {
+    refreshPostsFolder();
+    const unlisten = events.onConfigChanged(refreshPostsFolder);
+    return () => void unlisten.then((stop) => stop());
+  }, [refreshPostsFolder]);
+  const statuses = usePostStatuses(folder.tree, postsFolder);
+  const inPostsFolder = postsFolder !== null && folder.root !== null && (folder.root === postsFolder || isPostPath(`${folder.root}/x.md`, postsFolder));
+  const [newPostOpen, setNewPostOpen] = useState(false);
+  useEffect(() => {
+    if (!inPostsFolder) setNewPostOpen(false);
+  }, [inPostsFolder]);
 
   // Updates
   const updater = useMemo(
@@ -142,6 +162,68 @@ export function App() {
     restored.current = true;
     if (settings.lastFolder) void openTree(expandHome(settings.lastFolder, home));
   }, [loaded, home, settings.lastFolder, openTree]);
+
+  /** Asks for a posts folder if none is set, then opens it. Resolves true when it is open. */
+  const ensurePostsFolder = useCallback(async () => {
+    let folderPath = await api.postsFolder().catch(() => null);
+    if (!folderPath) {
+      try {
+        folderPath = await api.choosePostsFolder();
+      } catch (e) {
+        notify(String(e));
+        return false;
+      }
+      if (!folderPath) return false;
+    }
+    setPostsFolder(folderPath);
+    return openTree(folderPath).then((opened) => {
+      if (opened) {
+        setSidebarOpen(true);
+        void store.update({ lastFolder: home ? abbreviateHome(folderPath, home) : folderPath });
+      }
+      return opened;
+    });
+  }, [notify, openTree, store, home]);
+
+  const openPosts = useCallback(async () => {
+    await ensurePostsFolder();
+  }, [ensurePostsFolder]);
+
+  /** Creates a draft and opens it; resolves false (after a toast) when that failed. */
+  const newPost = useCallback(
+    async (title: string) => {
+      try {
+        await openFile(await api.createPost(title));
+        return true;
+      } catch (e) {
+        notify(String(e));
+        return false;
+      }
+    },
+    [openFile, notify],
+  );
+  /** ⌘N: show the title box, opening the posts folder first when it isn't the open folder. */
+  const startNewPost = useCallback(async () => {
+    if (!inPostsFolder && !(await ensurePostsFolder())) return;
+    setSidebarOpen(true);
+    setNewPostOpen(true);
+  }, [inPostsFolder, ensurePostsFolder]);
+
+  const onMenuAction = useEffectEvent((id: string) => {
+    if (id === "new-post") void startNewPost();
+    else if (id === "open-posts") void openPosts();
+  });
+  useEffect(() => {
+    const unlisten = events.onMenuAction((id) => onMenuAction(id));
+    return () => void unlisten.then((stop) => stop());
+  }, []);
+
+  const choosePostsFolder = useCallback(() => {
+    api.choosePostsFolder().then(refreshPostsFolder, (e) => notify(String(e)));
+  }, [refreshPostsFolder, notify]);
+  const clearPostsFolder = useCallback(() => {
+    api.clearPostsFolder().then(refreshPostsFolder, (e) => notify(String(e)));
+  }, [refreshPostsFolder, notify]);
 
   const chooseFile = useCallback(async () => {
     const path = await openDialog({ multiple: false, directory: false, filters: [{ name: "Markdown", extensions: ["md", "markdown"] }] });
@@ -294,7 +376,16 @@ export function App() {
   return (
     <div className="app">
       {sidebarOpen && folder.root && (
-        <Sidebar key={folder.root} root={folder.root} tree={folder.tree} currentPath={doc.path} onOpen={(path) => void openFile(path)} />
+        <Sidebar
+          key={folder.root}
+          root={folder.root}
+          tree={folder.tree}
+          currentPath={doc.path}
+          onOpen={(path) => void openFile(path)}
+          statuses={statuses}
+          onNewPost={inPostsFolder ? () => setNewPostOpen(true) : undefined}
+          newPostBox={newPostOpen && inPostsFolder ? <NewPostBox onCreate={newPost} onClose={() => setNewPostOpen(false)} /> : undefined}
+        />
       )}
       <main className="main">
         <Toolbar
@@ -330,6 +421,8 @@ export function App() {
             invalid={invalid}
             defaultApp={defaultApp}
             onMakeDefault={makeDefaultApp}
+            onChoosePostsFolder={choosePostsFolder}
+            onClearPostsFolder={clearPostsFolder}
             onChange={updateSettings}
             onClose={() => setSettingsOpen(false)}
           />

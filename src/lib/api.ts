@@ -70,4 +70,6 @@ export const events = {
   onOpenPath: on<string>("open-path"),
   /** Folio → Check for Updates… */
   onMenuCheckForUpdates: on<null>("menu-check-for-updates"),
+  /** Payload: the id of the File-menu item (or later menu item) that was chosen. */
+  onMenuAction: on<string>("menu-action"),
 };

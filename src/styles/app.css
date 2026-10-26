@@ -16,6 +16,15 @@ button { font: inherit; color: inherit; }
 
 /* Sidebar */
 .sidebar { width: 260px; flex-shrink: 0; display: flex; flex-direction: column; border-right: 1px solid var(--border); background: color-mix(in srgb, var(--fg) 3%, var(--bg)); }
+.sidebar-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-right: 10px; }
+.sidebar-header .sidebar-title { min-width: 0; }
+.new-post-button { flex-shrink: 0; padding: 2px 8px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--accent); font-size: 12px; }
+.new-post-button:hover { border-color: var(--accent); }
+.new-post-box { padding: 0 10px 8px; }
+.new-post-box input { width: 100%; box-sizing: border-box; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; font-size: 13px; }
+.new-post-box input:focus { outline: none; border-color: var(--accent); }
+.post-tag { margin-left: auto; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border); font-size: 10px; line-height: 16px; color: var(--muted); }
+.post-tag.published { border-color: var(--accent); color: var(--accent); }
 .sidebar-title { padding: 12px 14px 8px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sidebar-tree { flex: 1; overflow-y: auto; padding-bottom: 16px; }
 .sidebar ul { list-style: none; margin: 0; padding: 0; }
@@ -61,6 +70,9 @@ button { font: inherit; color: inherit; }
 .settings-panel input[type="checkbox"] { margin: 0; accent-color: var(--accent); }
 .settings-default-app { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; color: var(--muted); }
 .settings-default-app strong { color: var(--fg); font-weight: 600; }
+.settings-posts-folder { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.settings-posts-path { color: var(--muted); word-break: break-all; }
+.settings-posts-actions { display: flex; gap: 6px; }
 .settings-button { padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: color-mix(in srgb, var(--fg) 4%, var(--bg)); color: var(--fg); }
 .settings-button:hover { border-color: var(--accent); }
 .settings-value { color: var(--fg); font-variant-numeric: tabular-nums; }
