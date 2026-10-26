@@ -1,9 +1,31 @@
 import type { Tree, TreeNode } from "../lib/api";
 import { isMarkdownPath } from "../lib/paths";
+import { readStatus, stripFrontmatter } from "./frontmatter";
 
 /** A UI hint only: Rust decides what may be written. */
 export function isPostPath(path: string, postsFolder: string | null): boolean {
   return postsFolder !== null && path.startsWith(`${postsFolder.replace(/\/$/, "")}/`) && isMarkdownPath(path);
+}
+
+/** Posts open for writing, unless they aren't valid UTF-8: saving would replace the undecodable bytes. */
+export function writingModeFor(path: string, postsFolder: string | null, lossy: boolean): boolean {
+  return !lossy && isPostPath(path, postsFolder);
+}
+
+// A "word" has a letter or digit in it, so list bullets, "#" and "—" don't count.
+const WORDLIKE = /[\p{L}\p{N}]/u;
+
+/** Words in the body after the frontmatter, split on whitespace. */
+export function wordCount(text: string): number {
+  return stripFrontmatter(text)
+    .split(/\s+/)
+    .filter((w) => WORDLIKE.test(w)).length;
+}
+
+/** The collapsed frontmatter line in writing mode, e.g. "Draft · 412 words". */
+export function postLabel(text: string): string {
+  const n = wordCount(text);
+  return `${readStatus(text) === "published" ? "Published" : "Draft"} · ${n.toLocaleString("en-US")} ${n === 1 ? "word" : "words"}`;
 }
 
 export function postFilesIn(tree: Tree): string[] {

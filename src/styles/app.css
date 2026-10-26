@@ -13,6 +13,10 @@ button { font: inherit; color: inherit; }
 .app { display: flex; height: 100vh; }
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
 .doc-scroll { flex: 1; overflow-y: auto; position: relative; }
+/* Writing: the editor scrolls itself, under any banner. */
+.doc-scroll.writing { overflow: hidden; }
+.write-view { height: 100%; display: flex; flex-direction: column; }
+.write-editor { flex: 1; min-height: 0; }
 
 /* Sidebar */
 .sidebar { width: 260px; flex-shrink: 0; display: flex; flex-direction: column; border-right: 1px solid var(--border); background: color-mix(in srgb, var(--fg) 3%, var(--bg)); }
@@ -81,6 +85,9 @@ button { font: inherit; color: inherit; }
 
 /* Notices */
 .banner { position: sticky; top: 0; z-index: 2; padding: 8px 16px; text-align: center; background: color-mix(in srgb, #d97706 20%, var(--bg)); border-bottom: 1px solid var(--border); }
+.conflict-banner { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.conflict-banner button { padding: 3px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
+.conflict-banner button:hover { border-color: var(--accent); }
 .update-banner { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--accent) 10%, var(--bg)); }
 .update-message { flex: 1; min-width: 0; }
 .update-banner button { padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }

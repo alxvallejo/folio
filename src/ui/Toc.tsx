@@ -9,15 +9,19 @@ interface Props {
   headings: Heading[];
   html: string;
   scrollRef: RefObject<HTMLDivElement | null>;
+  /** Writing mode: the editor scrolls to headings and tracks the active one, so the DOM isn't read. */
+  onJump?: (id: string) => void;
+  activeIndex?: number;
 }
 
-export function Toc({ headings, html, scrollRef }: Props) {
-  const [active, setActive] = useState(0);
+export function Toc({ headings, html, scrollRef, onJump, activeIndex }: Props) {
+  const [spied, setActive] = useState(0);
+  const active = onJump ? (activeIndex ?? 0) : spied;
   const baseLevel = Math.min(...headings.map((h) => h.level));
 
   useEffect(() => {
     const container = scrollRef.current;
-    if (!container) return;
+    if (onJump || !container) return;
     let frame = 0;
     const update = () => {
       frame = 0;
@@ -37,7 +41,7 @@ export function Toc({ headings, html, scrollRef }: Props) {
       container.removeEventListener("scroll", onScroll);
       cancelAnimationFrame(frame);
     };
-  }, [headings, html, scrollRef]);
+  }, [headings, html, scrollRef, onJump]);
 
   return (
     <nav className="toc" aria-label="Contents">
@@ -48,7 +52,10 @@ export function Toc({ headings, html, scrollRef }: Props) {
             <button
               className={i === active ? "active" : undefined}
               style={{ paddingLeft: 14 + (heading.level - baseLevel) * 12 }}
-              onClick={() => scrollRef.current && scrollToFragment(scrollRef.current, heading.id, true)}
+              onClick={() => {
+                if (onJump) onJump(heading.id);
+                else if (scrollRef.current) scrollToFragment(scrollRef.current, heading.id, true);
+              }}
             >
               {heading.text}
             </button>

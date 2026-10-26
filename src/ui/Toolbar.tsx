@@ -1,8 +1,12 @@
 import { PanelLeft, PanelRight, Search, Settings2, SquarePen } from "lucide-react";
+import type { SaveState } from "../editor/autosave";
+import { saveSuffix } from "../editor/writer";
 import { THEMES, type ThemeId } from "../themes/catalog";
 
 interface Props {
   title: string;
+  /** Writing mode: whether the post is saved, shown after the title. */
+  saveState?: SaveState;
   /** The theme currently shown. */
   theme: ThemeId;
   /** Themes available for the current appearance; picking one sets that appearance's slot. */
@@ -32,7 +36,10 @@ export function Toolbar(props: Props) {
       >
         <PanelLeft size={16} />
       </button>
-      <div className="toolbar-title">{props.title}</div>
+      <div className="toolbar-title">
+        {props.title}
+        {props.saveState && saveSuffix(props.saveState)}
+      </div>
       <select className="theme-select" aria-label="Theme" value={props.theme} onChange={(e) => props.onTheme(e.target.value as ThemeId)}>
         {props.themes.map((id) => (
           <option key={id} value={id}>
