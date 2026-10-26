@@ -8,7 +8,8 @@ const markdownClasses = HighlightStyle.define([
   { tag: tags.strong, class: "cm-strong" },
   { tag: tags.emphasis, class: "cm-em" },
   { tag: tags.strikethrough, class: "cm-strike" },
-  { tag: [tags.link, tags.url], class: "cm-link" },
+  // Not tags.link: Lezer tags every "[…]" as a link. Live preview marks the real ones with cm-link.
+  { tag: tags.url, class: "cm-link" },
   { tag: tags.monospace, class: "cm-inline-code" },
   { tag: [tags.processingInstruction, tags.labelName, tags.string], class: "cm-syntax" },
 ]);

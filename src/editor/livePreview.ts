@@ -123,17 +123,50 @@ const LINE_CLASSES: Record<string, string> = {
   CodeBlock: "cm-codeblock",
 };
 
+// markdown-it's normalizeReference: labels match ignoring case, with runs of whitespace as one space.
+const normalizeLabel = (label: string): string => label.trim().replace(/\s+/g, " ").toLowerCase().toUpperCase();
+
+/** The labels of every link reference definition ("[ref]: https://…") in the doc. */
+function linkDefinitions(state: EditorState): Set<string> {
+  const labels = new Set<string>();
+  syntaxTree(state).iterate({
+    enter(ref) {
+      if (ref.name !== "LinkReference") return;
+      const label = ref.node.getChild("LinkLabel");
+      if (label) labels.add(normalizeLabel(state.sliceDoc(label.from + 1, label.to - 1)));
+      return false;
+    },
+  });
+  return labels;
+}
+
 /**
- * What live preview does to the doc: syntax marks to hide (outside the blocks the selection touches)
- * and classes for whole lines. The frontmatter block is left alone; its widget handles it.
+ * Lezer calls any "[…]" a Link. The reader only links inline links and references that have a
+ * definition; "[sic]", "a[i]" and footnotes ("[^1]") stay as written.
  */
-export function previewRanges(state: EditorState): { hide: Span[]; lineClass: [number, string][] } {
+function isReaderLink(state: EditorState, link: SyntaxNode, marks: SyntaxNode[], definitions: () => Set<string>): boolean {
+  if (marks.length >= 3 && marks[2].from === marks[1].to && state.sliceDoc(marks[2].from, marks[2].to) === "(") return true;
+  const label = link.getChild("LinkLabel");
+  // A full reference ("[text][ref]") names its label; a collapsed ("[text][]") or shortcut ("[text]") one uses its text.
+  const name = label && label.to - label.from > 2 ? state.sliceDoc(label.from + 1, label.to - 1) : state.sliceDoc(marks[0].to, marks[1].from);
+  return !name.startsWith("^") && definitions().has(normalizeLabel(name));
+}
+
+/**
+ * What live preview does to the doc: syntax marks to hide (outside the blocks the selection touches),
+ * classes for whole lines, and the spans the reader shows as links. The frontmatter block is left
+ * alone; its widget handles it.
+ */
+export function previewRanges(state: EditorState): { hide: Span[]; lineClass: [number, string][]; links: Span[] } {
   const field = state.field(frontmatterField, false);
   const fm = field === undefined ? locateFrontmatter(state) : field;
   const revealed = revealedBlocks(state);
   const isRevealed = (from: number, to: number) => revealed.some(([f, t]) => f <= from && to <= t);
   const hide: Span[] = [];
   const lineClass: [number, string][] = [];
+  const links: Span[] = [];
+  let definitions: Set<string> | undefined;
+  const definedLabels = () => (definitions ??= linkDefinitions(state));
 
   const hideIfHidden = (span: Span) => {
     if (!isRevealed(span[0], span[1])) hide.push(span);
@@ -164,7 +197,8 @@ export function previewRanges(state: EditorState): { hide: Span[]; lineClass: [n
         case "Link": {
           // "[" before the text, and everything from "]" on: URL, title, reference label.
           const marks = ref.node.getChildren("LinkMark");
-          if (marks.length >= 2) {
+          if (marks.length >= 2 && isReaderLink(state, ref.node, marks, definedLabels)) {
+            links.push([ref.from, ref.to]);
             hideIfHidden([marks[0].from, marks[0].to]);
             hideIfHidden([marks[1].from, ref.to]);
           }
@@ -181,13 +215,17 @@ export function previewRanges(state: EditorState): { hide: Span[]; lineClass: [n
       .filter(([pos]) => outside(pos))
       .sort((a, b) => a[0] - b[0])
       .filter(([pos, cls], i, all) => i === 0 || all[i - 1][0] !== pos || all[i - 1][1] !== cls),
+    links: links.filter(([from]) => outside(from)),
   };
 }
 
+const linkMark = Decoration.mark({ class: "cm-link" });
+
 function previewDecorations(state: EditorState): DecorationSet {
-  const { hide, lineClass } = previewRanges(state);
+  const { hide, lineClass, links } = previewRanges(state);
   const ranges: Range<Decoration>[] = [
     ...lineClass.map(([pos, cls]) => Decoration.line({ class: cls }).range(pos)),
+    ...links.map(([from, to]) => linkMark.range(from, to)),
     ...hide.map(([from, to]) => Decoration.replace({}).range(from, to)),
   ];
   return Decoration.set(ranges, true);

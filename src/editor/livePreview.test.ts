@@ -22,6 +22,26 @@ describe("previewRanges", () => {
     expect(r.hide).toEqual(expect.arrayContaining([[0, 1], [6, 26]]));
   });
 
+  it("leaves bracketed prose and footnotes alone", () => {
+    for (const doc of ["He said [sic] it.", "a[i] b", "note[^1]\n\n[^1]: Some note", "[x][nowhere]"]) {
+      const r = previewRanges(at(doc + "\n\nend", doc.length + 3));
+      expect(r.hide).toEqual([]);
+      expect(r.links).toEqual([]);
+    }
+  });
+
+  it("hides a reference link only when its label is defined", () => {
+    const doc = "[x][ref] and [Ref] and [y][]\n\n[REF]: https://a.b\n[y]: https://c.d\n\nend";
+    const r = previewRanges(at(doc, doc.length));
+    expect(r.hide).toEqual([[0, 1], [2, 8], [13, 14], [17, 18], [23, 24], [25, 28]]);
+    expect(r.links).toEqual([[0, 8], [13, 18], [23, 28]]);
+  });
+
+  it("marks real links for link styling", () => {
+    const doc = "A [Tauri](https://tauri.app) and [a]()\n\nend";
+    expect(previewRanges(at(doc, doc.length)).links).toEqual([[2, 28], [33, 38]]);
+  });
+
   it("hides a link's title along with its URL", () => {
     const doc = 'A [Tauri](https://tauri.app "Tauri") link\n\nx';
     expect(previewRanges(at(doc, doc.length)).hide).toEqual([[2, 3], [8, 36]]);
@@ -115,6 +135,15 @@ describe("livePreview in a view", () => {
     const view = mount(doc, doc.length);
     expect(view.contentDOM.textContent).not.toContain("**");
     expect(view.contentDOM.textContent).not.toContain("/url");
+    expect(view.contentDOM.querySelector(".cm-link")?.textContent).toBe("a");
+    view.destroy();
+  });
+
+  it("shows bracketed prose as written, without link styling", () => {
+    const doc = "He said [sic] it.\n\nend";
+    const view = mount(doc, doc.length);
+    expect(view.contentDOM.textContent).toContain("[sic]");
+    expect(view.contentDOM.querySelector(".cm-link")).toBeNull();
     view.destroy();
   });
 });
