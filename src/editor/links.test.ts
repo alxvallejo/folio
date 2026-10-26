@@ -87,6 +87,29 @@ describe("pasteLinkHandler", () => {
     expect(paste("a b", 1, 2, "just text").text).toBe("ajust textb");
     expect(paste("a b", 1, 2, "see https://x.y").text).toBe("asee https://x.yb");
   });
+  it("pastes plainly inside fenced code", () => {
+    expect(paste("```\ncode\n```", 6, 6, "https://c.d")).toEqual({ text: "```\ncohttps://c.dde\n```", prevented: true });
+    expect(paste("```\ncode\n```", 4, 8, "https://c.d").text).toBe("```\nhttps://c.d\n```");
+  });
+  it("pastes plainly inside inline code, and links just after it", () => {
+    expect(paste("a `x` b", 3, 3, "https://c.d").text).toBe("a `https://c.dx` b");
+    expect(paste("a `x` b", 3, 4, "https://c.d").text).toBe("a `https://c.d` b");
+    expect(paste("a `x` b", 6, 6, "https://c.d").text).toBe("a `x` <https://c.d>b");
+  });
+  it("pastes plainly inside frontmatter", () => {
+    expect(paste("---\nurl: \n---\nbody", 9, 9, "https://c.d").text).toBe("---\nurl: https://c.d\n---\nbody");
+    expect(paste("---\ntitle: My post\n---\nbody", 11, 18, "https://c.d").text).toBe("---\ntitle: https://c.d\n---\nbody");
+    expect(paste("---\ntitle: x\n---\nbody", 17, 21, "https://c.d").text).toBe("---\ntitle: x\n---\n[body](https://c.d)");
+  });
+  it("replaces a selected URL instead of linking it", () => {
+    expect(paste("see https://a.b now", 4, 15, "https://c.d").text).toBe("see https://c.d now");
+  });
+  it("pastes plainly into the URL part of a link", () => {
+    expect(paste("[x](https://a.b)", 4, 15, "https://c.d").text).toBe("[x](https://c.d)");
+    expect(paste("[x](./a.md)", 4, 10, "https://c.d").text).toBe("[x](https://c.d)");
+    expect(paste("[x](https://a.b)", 4, 4, "https://c.d").text).toBe("[x](https://c.dhttps://a.b)");
+    expect(paste("<https://a.b>", 1, 12, "https://c.d").text).toBe("<https://c.d>");
+  });
   it("works in a CRLF document", () => {
     expect(paste("one\r\ntwo", 0, 3, "https://a.b", "\r\n").text).toBe("[one](https://a.b)\ntwo");
   });

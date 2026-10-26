@@ -287,4 +287,16 @@ describe("WriteView", () => {
     expect(writePost).toHaveBeenLastCalledWith(PATH, CRLF_POST.replace("Body", "Theirs new"));
     expect(states[states.length - 1]).toBe("saved");
   });
+
+  it("closes the link box when an outside change reloads the post", () => {
+    render(CRLF_POST);
+    const view = writer().view;
+    // Mod is Ctrl outside macOS, and jsdom isn't macOS.
+    act(() => void view.contentDOM.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true, bubbles: true, cancelable: true })));
+    expect(container.querySelector(".link-box")).not.toBeNull();
+    const outside = CRLF_POST.replace("Body", "Theirs");
+    render(outside);
+    expect(writer().text()).toBe(outside);
+    expect(container.querySelector(".link-box")).toBeNull();
+  });
 });

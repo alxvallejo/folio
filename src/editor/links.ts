@@ -8,6 +8,7 @@ import {
 import { EditorView, keymap } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { findFrontmatter } from "../posts/frontmatter";
 
 export interface Link {
   from: number;
@@ -168,9 +169,35 @@ export function linkRequestForView(view: EditorView): LinkRequest {
   return linkRequest(view.state, anchor);
 }
 
+const CODE_NODES = new Set(["FencedCode", "CodeBlock", "InlineCode"]);
+
 /**
- * Pasting a URL over a selection links it; pasting one at a caret inserts it as "<url>". High
- * precedence because lang-markdown's own paste-as-link handler would otherwise take it first.
+ * Whether a pasted URL belongs in the text as typed: inside code or frontmatter, over a URL, or
+ * into a link's URL. Code counts only strictly inside, so a caret just after "`x`" still links.
+ */
+function pastesPlainly(state: EditorState, from: number, to: number): boolean {
+  if (from < to && isLinkUrl(state.sliceDoc(from, to))) return true;
+  // toString() joins lines with "\n", so the string offset is a document position.
+  const fm = findFrontmatter(state.doc.toString());
+  if (fm && fm !== "unparseable" && from < fm.end) return true;
+  let plain = false;
+  syntaxTree(state).iterate({
+    from,
+    to,
+    enter(node) {
+      if (plain) return false;
+      if (node.name === "URL" && node.from <= from && to <= node.to) plain = true;
+      const inside = (pos: number) => node.from < pos && pos < node.to;
+      if (CODE_NODES.has(node.name) && (inside(from) || inside(to))) plain = true;
+    },
+  });
+  return plain;
+}
+
+/**
+ * Pasting a URL over a selection links it; pasting one at a caret inserts it as "<url>"; inside
+ * code, frontmatter or a URL it goes in as plain text. High precedence because lang-markdown's
+ * own paste-as-link handler would otherwise take it first.
  */
 export const pasteLinkHandler: Extension = Prec.high(
   EditorView.domEventHandlers({
@@ -179,7 +206,12 @@ export const pasteLinkHandler: Extension = Prec.high(
       if (!isLinkUrl(clip)) return false;
       const { from, to } = view.state.selection.main;
       event.preventDefault();
-      view.dispatch(setLink(view.state, { from, to }, clip));
+      if (pastesPlainly(view.state, from, to)) {
+        // Handled here rather than left to the default, which lang-markdown would turn into a link.
+        view.dispatch(view.state.replaceSelection(clip), { userEvent: "input.paste", scrollIntoView: true });
+      } else {
+        view.dispatch(setLink(view.state, { from, to }, clip));
+      }
       return true;
     },
   }),

@@ -104,6 +104,8 @@ export function WriteView({ path, diskText, removed, onState, onHeadings, onStat
       lineSeparator: detectLineSeparator(initialText),
       onDocChange: (text) => {
         autosave.edit(text);
+        // An open link box holds positions in the old text (an outside reload, say), so close it.
+        setLinkRequest(null);
         window.clearTimeout(outlineTimer);
         outlineTimer = window.setTimeout(refreshOutline, OUTLINE_DELAY_MS);
       },

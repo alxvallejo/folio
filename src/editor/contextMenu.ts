@@ -37,20 +37,25 @@ export async function showFolioContextMenu(view: EditorView, req: LinkRequest, o
 /**
  * Right-click in the editor. The selection is read on mousedown, before the click can move it:
  * a prior selection or a link under the pointer gets Folio's menu, anything else the native one.
+ * A menu with no mousedown before it (the keyboard menu key) uses the live selection.
  */
 export function folioContextMenu(open: (req: LinkRequest) => void, onError: (error: unknown) => void): Extension {
-  let before = { empty: true, from: 0, to: 0 };
+  let before: { empty: boolean; from: number; to: number } | null = null;
   return EditorView.domEventHandlers({
     mousedown(event, view) {
-      if (event.button !== 2) return false;
+      // Control-click opens the menu on macOS too.
+      if (event.button !== 2 && !event.ctrlKey) return false;
       const { empty, from, to } = view.state.selection.main;
       before = { empty, from, to };
       return false;
     },
     contextmenu(event, view) {
+      const { empty, from, to } = view.state.selection.main;
+      const selection = before ?? { empty, from, to };
+      before = null;
       const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
       const link = pos === null ? null : linkAt(view.state, pos);
-      if (contextMenuKind(before, link !== null) === "native") return false;
+      if (contextMenuKind(selection, link !== null) === "native") return false;
       event.preventDefault();
       const anchor = { left: event.clientX, top: event.clientY };
       let req: LinkRequest;
@@ -58,7 +63,7 @@ export function folioContextMenu(open: (req: LinkRequest) => void, onError: (err
         req = { from: link.from, to: link.to, existing: { url: link.url, text: link.text }, needsText: false, anchor };
       } else {
         // The click may have moved the caret; the menu acts on what was selected before it.
-        req = { ...linkRequest(view.state, anchor), from: before.from, to: before.to, existing: null, needsText: false };
+        req = { ...linkRequest(view.state, anchor), from: selection.from, to: selection.to, existing: null, needsText: false };
       }
       showFolioContextMenu(view, req, open).catch(onError);
       return true;
