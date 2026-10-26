@@ -44,6 +44,8 @@ export const api = {
   postsFolder: () => invoke<string | null>("posts_folder"),
   /** Opens a folder picker; null if cancelled, rejects with a message if the folder is too broad. */
   choosePostsFolder: () => invoke<string | null>("choose_posts_folder"),
+  /** The posts folder, or ~/Documents/Folio/Posts (created and saved) when none is set. */
+  useDefaultPostsFolder: () => invoke<string>("use_default_posts_folder"),
   clearPostsFolder: () => invoke<void>("clear_posts_folder"),
   /** Rust refuses anything outside the posts folder or not already on disk. */
   writePost: (path: string, text: string) => invoke<void>("write_post", { path, text }),

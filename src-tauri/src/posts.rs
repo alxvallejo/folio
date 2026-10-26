@@ -9,6 +9,8 @@ const FOLDER_KEY: &str = "postsFolder";
 const TOO_BROAD: &str = "Pick a more specific folder for posts.";
 const OUTSIDE: &str = "Folio only writes posts in your posts folder.";
 const BOM: &[u8] = b"\xEF\xBB\xBF";
+/// Where posts go when Alex hasn't chosen a folder, relative to home.
+const DEFAULT_FOLDER: &str = "Documents/Folio/Posts";
 
 fn home_dir() -> PathBuf {
     std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("/"))
@@ -40,6 +42,22 @@ pub fn check_folder(path: &Path, home: &Path) -> Result<PathBuf, String> {
         return Err(TOO_BROAD.to_string());
     }
     Ok(canonical)
+}
+
+/// The default posts folder under `home`, created if missing, canonical.
+pub fn default_folder_in(home: &Path) -> Result<PathBuf, String> {
+    let folder = home.join(DEFAULT_FOLDER);
+    std::fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+    check_folder(&folder, home)
+}
+
+/// How a canonical folder is saved in config.json: `~/…` when it is under home.
+fn stored_path(canonical: &Path, home: &Path) -> String {
+    let canonical_home = std::fs::canonicalize(home).unwrap_or_else(|_| home.to_path_buf());
+    match canonical.strip_prefix(&canonical_home) {
+        Ok(rest) => format!("~/{}", rest.to_string_lossy()),
+        Err(_) => canonical.to_string_lossy().into_owned(),
+    }
 }
 
 /// The Markdown file `path` really is (symlinks and `..` resolved), provided it
@@ -194,13 +212,21 @@ pub async fn choose_posts_folder(app: tauri::AppHandle) -> Result<Option<String>
     let picked = picked.into_path().map_err(|e| e.to_string())?;
     let home = home_dir();
     let canonical = check_folder(&picked, &home)?;
-    let canonical_home = std::fs::canonicalize(&home).unwrap_or(home);
-    let stored = match canonical.strip_prefix(&canonical_home) {
-        Ok(rest) => format!("~/{}", rest.to_string_lossy()),
-        Err(_) => canonical.to_string_lossy().into_owned(),
-    };
-    save_folder(Some(&stored))?;
+    save_folder(Some(&stored_path(&canonical, &home)))?;
     Ok(Some(canonical.to_string_lossy().into_owned()))
+}
+
+/// The posts folder, falling back to `~/Documents/Folio/Posts` (created and
+/// saved) when none is set or the set one is gone.
+#[tauri::command]
+pub fn use_default_posts_folder() -> Result<String, String> {
+    if let Ok(folder) = current_folder() {
+        return Ok(folder.to_string_lossy().into_owned());
+    }
+    let home = home_dir();
+    let folder = default_folder_in(&home)?;
+    save_folder(Some(&stored_path(&folder, &home)))?;
+    Ok(folder.to_string_lossy().into_owned())
 }
 
 #[tauri::command]
@@ -236,6 +262,17 @@ mod tests {
             "Pick a more specific folder for posts."
         );
         assert!(check_folder(&blog, home.path()).is_ok());
+    }
+
+    #[test]
+    fn default_folder_is_created_and_stored_under_home() {
+        let home = tempfile::tempdir().unwrap();
+        let folder = default_folder_in(home.path()).unwrap();
+        assert!(folder.is_dir());
+        assert!(folder.ends_with("Documents/Folio/Posts"));
+        assert_eq!(default_folder_in(home.path()).unwrap(), folder);
+        assert_eq!(stored_path(&folder, home.path()), "~/Documents/Folio/Posts");
+        assert_eq!(stored_path(Path::new("/elsewhere/Blog"), home.path()), "/elsewhere/Blog");
     }
 
     #[test]

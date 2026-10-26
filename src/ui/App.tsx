@@ -208,17 +208,17 @@ export function App() {
     if (settings.lastFolder) void openTree(expandHome(settings.lastFolder, home));
   }, [loaded, home, settings.lastFolder, openTree]);
 
-  /** Asks for a posts folder if none is set, then opens it. Resolves true when it is open. */
+  /** Opens the posts folder, setting up ~/Documents/Folio/Posts if none is set. Resolves true when it is open. */
   const ensurePostsFolder = useCallback(async () => {
     let folderPath = await api.postsFolder().catch(() => null);
     if (!folderPath) {
       try {
-        folderPath = await api.choosePostsFolder();
+        folderPath = await api.useDefaultPostsFolder();
       } catch (e) {
-        notify(String(e));
+        notify(`Couldn't set up a posts folder: ${String(e).replace(/\.$/, "")}.`);
         return false;
       }
-      if (!folderPath) return false;
+      notify("Posts go in Documents › Folio › Posts. You can change this in Settings.");
     }
     setPostsFolder(folderPath);
     return openFolder(folderPath);

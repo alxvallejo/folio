@@ -43,6 +43,7 @@ pub fn run() {
             menu::quit_acknowledged,
             posts::posts_folder,
             posts::choose_posts_folder,
+            posts::use_default_posts_folder,
             posts::clear_posts_folder,
             posts::write_post,
             posts::create_post,
