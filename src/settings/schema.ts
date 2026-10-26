@@ -14,6 +14,8 @@ export interface Settings {
   maxWidth: number;
   editorCommand: string;
   lastFolder: string | null;
+  /** `~`-abbreviated posts folder. Only Rust changes it, so patches never write it. */
+  postsFolder: string | null;
   /** Check GitHub for a new Folio 30 seconds after launch. */
   autoUpdateCheck: boolean;
   /** Set once Folio has asked macOS to make it the default Markdown app; never shown in Settings. */
@@ -42,6 +44,7 @@ export const DEFAULTS: Settings = {
   maxWidth: 68,
   editorCommand: "code",
   lastFolder: null,
+  postsFolder: null,
   autoUpdateCheck: true,
   defaultAppAsked: false,
 };
@@ -97,6 +100,7 @@ export function effectiveSettings(input: RawConfig): Settings {
     maxWidth: numeric("maxWidth"),
     editorCommand: text(raw.editorCommand) ?? DEFAULTS.editorCommand,
     lastFolder: text(raw.lastFolder),
+    postsFolder: text(raw.postsFolder),
     autoUpdateCheck: typeof raw.autoUpdateCheck === "boolean" ? raw.autoUpdateCheck : DEFAULTS.autoUpdateCheck,
     defaultAppAsked: typeof raw.defaultAppAsked === "boolean" ? raw.defaultAppAsked : DEFAULTS.defaultAppAsked,
   };
@@ -110,7 +114,7 @@ export function applyPatch(raw: RawConfig, patch: Partial<Settings>): RawConfig 
   const next: RawConfig = { ...migrate(raw) };
   for (const key of Object.keys(patch) as (keyof Settings)[]) {
     let value = patch[key];
-    if (value === undefined) continue;
+    if (value === undefined || key === "postsFolder") continue;
     if (typeof value === "number" && isNumericKey(key)) value = clampSetting(key, value);
     if (typeof value === "string" && FONT_KEYS.has(key)) value = value.trim() || null;
     if (value === null || value === DEFAULTS[key]) delete next[key];

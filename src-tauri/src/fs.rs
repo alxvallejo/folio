@@ -5,6 +5,8 @@ use std::path::Path;
 pub struct FileContents {
     pub text: String,
     pub size: u64,
+    /// True when the file wasn't valid UTF-8, so saving this text back would change bytes.
+    pub lossy: bool,
 }
 
 #[derive(Debug, Serialize, PartialEq)]
@@ -42,7 +44,11 @@ pub fn decode(bytes: &[u8]) -> String {
 
 pub fn read_text(path: &Path) -> Result<FileContents, String> {
     let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
-    Ok(FileContents { size: bytes.len() as u64, text: decode(&bytes) })
+    Ok(FileContents {
+        size: bytes.len() as u64,
+        lossy: std::str::from_utf8(&bytes).is_err(),
+        text: decode(&bytes),
+    })
 }
 
 pub fn is_markdown(path: &Path) -> bool {
@@ -59,17 +65,20 @@ fn path_string(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
 
+/// Paths in the tree are canonical, so they compare equal to the canonical posts folder even when
+/// the root was opened through a symlink. The root keeps the name it was opened by.
 pub fn build_tree(root: &Path, limits: Limits) -> Result<Tree, String> {
     // Surface an unreadable root as an error; unreadable subdirs are skipped silently.
     std::fs::read_dir(root).map_err(|e| e.to_string())?;
-    let mut walk = Walk { limits, files: 0, truncated: false };
-    let children = walk.dir(root, 1);
     let name = root
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| path_string(root));
+    let root = std::fs::canonicalize(root).map_err(|e| e.to_string())?;
+    let mut walk = Walk { limits, files: 0, truncated: false };
+    let children = walk.dir(&root, 1);
     Ok(Tree {
-        root: TreeNode { name, path: path_string(root), is_dir: true, children },
+        root: TreeNode { name, path: path_string(&root), is_dir: true, children },
         truncated: walk.truncated,
     })
 }
@@ -151,6 +160,17 @@ mod tests {
     }
 
     #[test]
+    fn read_text_flags_lossy_utf8() {
+        let dir = tempfile::tempdir().unwrap();
+        let bad = dir.path().join("bad.md");
+        std::fs::write(&bad, [0xff, b'a']).unwrap();
+        assert!(read_text(&bad).unwrap().lossy);
+        let good = dir.path().join("good.md");
+        std::fs::write(&good, "héllo").unwrap();
+        assert!(!read_text(&good).unwrap().lossy);
+    }
+
+    #[test]
     fn read_text_reports_byte_size() {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("a.md");
@@ -204,6 +224,21 @@ mod tests {
 
         let tree = build_tree(root, Limits::default()).unwrap();
         assert_eq!(names(&tree.root), vec!["linked.md"]);
+    }
+
+    #[test]
+    fn tree_of_a_symlinked_root_lists_canonical_paths_under_the_link_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let real = dir.path().join("Blog");
+        touch(&real.join("drafts/a.md"));
+        let link = dir.path().join("Writing");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        let canonical = std::fs::canonicalize(&real).unwrap();
+
+        let tree = build_tree(&link, Limits::default()).unwrap();
+        assert_eq!(tree.root.name, "Writing");
+        assert_eq!(tree.root.path, path_string(&canonical));
+        assert_eq!(tree.root.children[0].children[0].path, path_string(&canonical.join("drafts/a.md")));
     }
 
     #[test]

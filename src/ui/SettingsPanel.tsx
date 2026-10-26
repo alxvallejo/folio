@@ -14,11 +14,13 @@ interface Props {
   /** null until known, or when it can't be read; the row is hidden then. */
   defaultApp: DefaultApp | null;
   onMakeDefault: () => void;
+  onChoosePostsFolder: () => void;
+  onClearPostsFolder: () => void;
   onChange: (patch: Partial<Settings>) => void;
   onClose: () => void;
 }
 
-export function SettingsPanel({ settings, shownTheme, invalid, defaultApp, onMakeDefault, onChange, onClose }: Props) {
+export function SettingsPanel({ settings, shownTheme, invalid, defaultApp, onMakeDefault, onChoosePostsFolder, onClearPostsFolder, onChange, onClose }: Props) {
   const theme = THEMES[shownTheme];
   return (
     <aside className="settings-panel" aria-label="Settings">
@@ -50,6 +52,22 @@ export function SettingsPanel({ settings, shownTheme, invalid, defaultApp, onMak
         <input type="checkbox" checked={settings.autoUpdateCheck} onChange={(e) => onChange({ autoUpdateCheck: e.target.checked })} />
         Check for updates automatically
       </label>
+      <div className="settings-posts-folder">
+        <span>Posts folder</span>
+        <span className="settings-posts-path" title={settings.postsFolder ?? undefined}>
+          {settings.postsFolder ?? "Not set"}
+        </span>
+        <div className="settings-posts-actions">
+          <button className="settings-button" onClick={onChoosePostsFolder}>
+            Choose…
+          </button>
+          {settings.postsFolder && (
+            <button className="settings-button" onClick={onClearPostsFolder}>
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
       <DefaultAppRow status={defaultApp} onMakeDefault={onMakeDefault} />
       <p className="settings-hint">Leave a font empty to use the theme's. Fonts accept any installed family name. Settings live in ~/.config/folio/config.json, which you can also edit by hand.</p>
     </aside>

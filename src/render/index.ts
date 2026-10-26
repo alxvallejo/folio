@@ -1,6 +1,7 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { getHighlighter, makeHighlight, type ThemePair } from "./highlight";
 import { createMarkdown, type Heading, type RenderEnv } from "./markdown";
+import { stripFrontmatter } from "../posts/frontmatter";
 import { postprocess } from "./postprocess";
 
 export type { Heading } from "./markdown";
@@ -32,7 +33,7 @@ export async function createRenderer(): Promise<Render> {
       byThemes.set(key, md);
     }
     const env: RenderEnv = {};
-    const raw = md.render(source, env);
+    const raw = md.render(stripFrontmatter(source), env);
     return { html: postprocess(raw, { baseDir, toAssetUrl }), headings: env.headings ?? [] };
   };
 }

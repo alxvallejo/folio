@@ -5,6 +5,7 @@ mod fs;
 mod menu;
 mod navigation;
 mod open;
+mod posts;
 mod relaunch;
 mod watch;
 
@@ -13,10 +14,12 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(navigation::guard())
         .manage(open::PendingOpen::default())
         .manage(watch::Watchers::default())
+        .manage(menu::QuitRequest::default())
         .menu(menu::build)
         .on_menu_event(menu::on_event)
         .setup(|app| {
@@ -36,6 +39,13 @@ pub fn run() {
             open::frontend_ready,
             editor::open_in_editor,
             relaunch::relaunch,
+            menu::quit,
+            menu::quit_acknowledged,
+            posts::posts_folder,
+            posts::choose_posts_folder,
+            posts::clear_posts_folder,
+            posts::write_post,
+            posts::create_post,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Folio");

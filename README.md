@@ -2,7 +2,7 @@
 
 # Folio
 
-A personal macOS app for reading local Markdown files. Read-only: Folio never writes to your documents. Built with Tauri 2 and React/TypeScript.
+A personal macOS app for reading local Markdown files. Folio only writes to posts in your posts folder, and only when you edit them; every other file is read-only. Built with Tauri 2 and React/TypeScript.
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/klein.png"><img src="docs/screenshots/riso.png" alt="Folio showing a Markdown document in the Riso theme, with a folder sidebar and a table of contents"></picture>
 
@@ -35,6 +35,18 @@ Folio switches with macOS appearance. Pick a light theme and a dark theme separa
   </tr>
 </table>
 
+## Writing posts
+
+Choose a posts folder in Settings and Folio opens the Markdown files in it for writing, with the same themes as reading.
+
+<img src="docs/screenshots/writing.png" alt="Writing a post in Folio, with the Riso theme">
+
+- **New post** (⌘N) asks for a title and creates `<Title>.md` as a draft in the posts folder.
+- **Autosave** writes about a second after you stop typing, and again when you switch files, leave the window, close it, quit or install an update. The title bar shows saved, saving or not saved.
+- **Links**: ⌘K, right-click, or paste a URL over selected text.
+- **Copy for Substack** (⇧⌘C) puts the post on the clipboard as formatted text, ready to paste into a Substack draft.
+- **Mark published** sets `status: published` and adds a `published` date; **Mark as draft** flips it back.
+
 ## Develop
 
 ```sh
@@ -62,4 +74,4 @@ The script checks that you're on a clean, pushed `master` and that the tests pas
 
 ## Config
 
-Settings live in `~/.config/folio/config.json`. It is the only file Folio writes.
+Settings live in `~/.config/folio/config.json`. Besides posts you edit, it is the only file Folio writes.

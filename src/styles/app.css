@@ -13,9 +13,22 @@ button { font: inherit; color: inherit; }
 .app { display: flex; height: 100vh; }
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
 .doc-scroll { flex: 1; overflow-y: auto; position: relative; }
+/* Writing: the editor scrolls itself, under any banner. */
+.doc-scroll.writing { overflow: hidden; }
+.write-view { height: 100%; display: flex; flex-direction: column; }
+.write-editor { flex: 1; min-height: 0; }
 
 /* Sidebar */
 .sidebar { width: 260px; flex-shrink: 0; display: flex; flex-direction: column; border-right: 1px solid var(--border); background: color-mix(in srgb, var(--fg) 3%, var(--bg)); }
+.sidebar-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-right: 10px; }
+.sidebar-header .sidebar-title { min-width: 0; }
+.new-post-button { flex-shrink: 0; padding: 2px 8px; border: 1px solid var(--border); border-radius: 6px; background: transparent; color: var(--accent); font-size: 12px; }
+.new-post-button:hover { border-color: var(--accent); }
+.new-post-box { padding: 0 10px 8px; }
+.new-post-box input { width: 100%; box-sizing: border-box; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; font-size: 13px; }
+.new-post-box input:focus { outline: none; border-color: var(--accent); }
+.post-tag { margin-left: auto; padding: 0 6px; border-radius: 999px; border: 1px solid var(--border); font-size: 10px; line-height: 16px; color: var(--muted); }
+.post-tag.draft { border-color: var(--accent); color: var(--accent); }
 .sidebar-title { padding: 12px 14px 8px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sidebar-tree { flex: 1; overflow-y: auto; padding-bottom: 16px; }
 .sidebar ul { list-style: none; margin: 0; padding: 0; }
@@ -32,6 +45,9 @@ button { font: inherit; color: inherit; }
 .toolbar-title { flex: 1; min-width: 0; text-align: center; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .theme-select { font: inherit; color: var(--muted); background: none; border: 1px solid transparent; border-radius: 6px; padding: 3px 6px; }
 .theme-select:hover { border-color: var(--border); }
+.text-button { flex-shrink: 0; margin: 0 2px; padding: 3px 10px; border: 1px solid var(--border); border-radius: 6px; background: none; color: var(--fg); font: inherit; font-size: 12px; white-space: nowrap; }
+.text-button:hover { border-color: var(--accent); }
+.text-button.solid { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .icon-button { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--muted); }
 .icon-button:hover:not(:disabled) { background: color-mix(in srgb, var(--fg) 8%, transparent); color: var(--fg); }
 .icon-button[aria-pressed="true"] { color: var(--link); }
@@ -61,6 +77,9 @@ button { font: inherit; color: inherit; }
 .settings-panel input[type="checkbox"] { margin: 0; accent-color: var(--accent); }
 .settings-default-app { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; color: var(--muted); }
 .settings-default-app strong { color: var(--fg); font-weight: 600; }
+.settings-posts-folder { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.settings-posts-path { color: var(--muted); word-break: break-all; }
+.settings-posts-actions { display: flex; gap: 6px; }
 .settings-button { padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: color-mix(in srgb, var(--fg) 4%, var(--bg)); color: var(--fg); }
 .settings-button:hover { border-color: var(--accent); }
 .settings-value { color: var(--fg); font-variant-numeric: tabular-nums; }
@@ -69,6 +88,9 @@ button { font: inherit; color: inherit; }
 
 /* Notices */
 .banner { position: sticky; top: 0; z-index: 2; padding: 8px 16px; text-align: center; background: color-mix(in srgb, #d97706 20%, var(--bg)); border-bottom: 1px solid var(--border); }
+.conflict-banner { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.conflict-banner button { padding: 3px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
+.conflict-banner button:hover { border-color: var(--accent); }
 .update-banner { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--accent) 10%, var(--bg)); }
 .update-message { flex: 1; min-width: 0; }
 .update-banner button { padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); }
@@ -90,3 +112,9 @@ button { font: inherit; color: inherit; }
 .toasts { position: fixed; bottom: 16px; left: 50%; z-index: 10; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .toast { display: flex; align-items: center; gap: 8px; max-width: 560px; padding: 8px 8px 8px 14px; border-radius: 8px; background: var(--fg); color: var(--bg); box-shadow: 0 6px 24px rgb(0 0 0 / .2); }
 .toast .icon-button { width: 22px; height: 22px; color: inherit; }
+.link-box-backdrop { position: fixed; inset: 0; z-index: 40; }
+.link-box { position: fixed; z-index: 41; display: flex; flex-direction: column; gap: 6px; width: 300px; max-width: calc(100vw - 16px); margin-top: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); box-shadow: 0 6px 24px rgba(0, 0, 0, .18); }
+.link-box input { box-sizing: border-box; width: 100%; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; font-size: 13px; }
+.link-box input:focus { outline: none; border-color: var(--accent); }
+.link-box-remove { align-self: flex-end; padding: 2px 8px; border: 0; background: none; color: var(--muted); font: inherit; font-size: 12px; }
+.link-box-remove:hover { color: var(--fg); }

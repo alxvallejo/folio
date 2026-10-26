@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULTS, applyPatch, effectiveSettings, migrate, parseConfig, serializeConfig } from "./schema";
+import { DEFAULTS, type Settings, applyPatch, effectiveSettings, migrate, parseConfig, serializeConfig } from "./schema";
 
 describe("effectiveSettings", () => {
   it("returns the defaults for an empty config", () => {
@@ -15,6 +15,7 @@ describe("effectiveSettings", () => {
       maxWidth: 68,
       editorCommand: "code",
       lastFolder: null,
+      postsFolder: null,
       autoUpdateCheck: true,
       defaultAppAsked: false,
     });
@@ -112,6 +113,12 @@ describe("applyPatch", () => {
     expect(applyPatch({}, { defaultAppAsked: true })).toEqual({ defaultAppAsked: true });
     expect(applyPatch({ defaultAppAsked: true }, { defaultAppAsked: false })).toEqual({});
     expect(effectiveSettings({ defaultAppAsked: true }).defaultAppAsked).toBe(true);
+  });
+
+  it("reads postsFolder but never writes it", () => {
+    expect(effectiveSettings({ postsFolder: "~/Blog" }).postsFolder).toBe("~/Blog");
+    expect(applyPatch({ postsFolder: "~/Blog" }, { postsFolder: "/" } as Partial<Settings>)).toEqual({ postsFolder: "~/Blog" });
+    expect(applyPatch({}, { postsFolder: "/" } as Partial<Settings>)).toEqual({});
   });
 
   it("preserves unknown keys", () => {

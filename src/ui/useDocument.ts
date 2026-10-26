@@ -9,6 +9,7 @@ export const LARGE_FILE_BYTES = 5 * 1024 * 1024;
 interface Loaded {
   path: string;
   text: string;
+  lossy: boolean;
 }
 
 export interface PendingLarge {
@@ -19,6 +20,10 @@ export interface PendingLarge {
 export interface DocumentHandle {
   path: string | null;
   rendered: RenderResult | null;
+  /** The file's text as last read from disk; updated by live reload. */
+  text: string | null;
+  /** True when the file wasn't valid UTF-8, so `text` isn't exactly what's on disk. */
+  lossy: boolean;
   isEmpty: boolean;
   removed: boolean;
   pendingLarge: PendingLarge | null;
@@ -41,7 +46,7 @@ export function useDocument(render: Render | null, themes: ThemePair, notify: (m
       const token = reload ? guard.snapshot() : guard.begin();
       const stale = () => !guard.isCurrent(token) || (reload && path !== pathRef.current);
       try {
-        const { text, size } = await api.readFile(path);
+        const { text, size, lossy } = await api.readFile(path);
         if (stale()) return false;
         const isCurrent = path === pathRef.current;
         if (size > LARGE_FILE_BYTES && !confirmed && !isCurrent) {
@@ -55,7 +60,7 @@ export function useDocument(render: Render | null, themes: ThemePair, notify: (m
         pathRef.current = path;
         setPendingLarge(null);
         setRemoved(false);
-        setLoaded({ path, text });
+        setLoaded({ path, text, lossy });
         return true;
       } catch (e) {
         if (!stale()) notify(`Couldn't open ${basename(path)}: ${String(e)}`);
@@ -95,6 +100,8 @@ export function useDocument(render: Render | null, themes: ThemePair, notify: (m
   return {
     path: loaded?.path ?? null,
     rendered,
+    text: loaded?.text ?? null,
+    lossy: loaded?.lossy ?? false,
     isEmpty: loaded !== null && loaded.text.trim() === "",
     removed,
     pendingLarge,

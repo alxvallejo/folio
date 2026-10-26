@@ -4,6 +4,8 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 export interface FileContents {
   text: string;
   size: number;
+  /** True when the file wasn't valid UTF-8, so saving would change bytes. */
+  lossy: boolean;
 }
 
 export interface TreeNode {
@@ -38,6 +40,19 @@ export const api = {
   openInEditor: (path: string, command: string) => invoke<void>("open_in_editor", { path, command }),
   /** Starts the installed version on `path` and quits Folio. */
   relaunch: (path: string | null) => invoke<void>("relaunch", { path }),
+  /** The configured posts folder (absolute), or null when unset or unusable. */
+  postsFolder: () => invoke<string | null>("posts_folder"),
+  /** Opens a folder picker; null if cancelled, rejects with a message if the folder is too broad. */
+  choosePostsFolder: () => invoke<string | null>("choose_posts_folder"),
+  clearPostsFolder: () => invoke<void>("clear_posts_folder"),
+  /** Rust refuses anything outside the posts folder or not already on disk. */
+  writePost: (path: string, text: string) => invoke<void>("write_post", { path, text }),
+  /** Creates a draft in the posts folder; resolves with its path. */
+  createPost: (title: string) => invoke<string>("create_post", { title }),
+  /** Tells Rust the webview got the quit request, so its 3 s fallback must not exit under a dialog. */
+  quitAcknowledged: () => invoke<void>("quit_acknowledged"),
+  /** Exits Folio. Save the open post first. */
+  quit: () => invoke<void>("quit"),
   defaultMarkdownApp: () => invoke<DefaultApp>("default_markdown_app"),
   /** Shows the macOS confirmation dialog; resolves when the user answers. */
   makeDefaultMarkdownApp: () => invoke<"made" | "declined">("make_default_markdown_app"),
@@ -59,4 +74,6 @@ export const events = {
   onOpenPath: on<string>("open-path"),
   /** Folio → Check for Updates… */
   onMenuCheckForUpdates: on<null>("menu-check-for-updates"),
+  /** Payload: the id of the File-menu item (or later menu item) that was chosen. */
+  onMenuAction: on<string>("menu-action"),
 };

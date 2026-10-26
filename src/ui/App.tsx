@@ -1,13 +1,19 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { homeDir } from "@tauri-apps/api/path";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { ask, open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { writeHtml } from "@tauri-apps/plugin-clipboard-manager";
 import { check } from "@tauri-apps/plugin-updater";
 import { type ReactNode, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ASK_DELAY_MS, askOnFirstLaunch } from "../defaultApp/defaultApp";
 import { api, events, type DefaultApp } from "../lib/api";
 import { abbreviateHome, basename, expandHome } from "../lib/paths";
+import type { SaveState } from "../editor/autosave";
+import { localDate, readStatus, setStatus, type PostStatus } from "../posts/frontmatter";
+import { isPostPath, writingModeFor } from "../posts/posts";
+import { copyMessage, toSubstack } from "../posts/substack";
+import type { Heading } from "../render";
 import { DEFAULT_FONT_SIZE } from "../settings/schema";
 import { shikiThemeName } from "../render/shikiThemes";
 import { createSettingsStore } from "../settings/store";
@@ -17,6 +23,9 @@ import { createUpdater, releaseNotesUrl } from "../update/updater";
 import { DocumentView, LargeFilePrompt } from "./DocumentView";
 import { EmptyState } from "./EmptyState";
 import { FindBar } from "./FindBar";
+import { leavePost } from "./leavePost";
+import { NewPostBox } from "./NewPostBox";
+import { createAndOpenPost } from "./newPost";
 import { scrollToFragment } from "./scroll";
 import { SettingsPanel } from "./SettingsPanel";
 import { actionFor, type Action } from "./shortcuts";
@@ -27,8 +36,10 @@ import { Toolbar } from "./Toolbar";
 import { UpdateBanner } from "./UpdateBanner";
 import { useDocument } from "./useDocument";
 import { useFolder } from "./useFolder";
+import { usePostStatuses } from "./usePostStatuses";
 import { useRenderer } from "./useRenderer";
 import { useSystemDark } from "./useSystemDark";
+import { WriteView, type WriterHandle } from "./WriteView";
 
 export function App() {
   const { toasts, notify, dismiss } = useToasts();
@@ -67,6 +78,54 @@ export function App() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [fragment, setFragment] = useState<string | null>(null);
   const clearFragment = useCallback(() => setFragment(null), []);
+
+  // Posts folder: the canonical path from Rust, re-read whenever config.json changes.
+  const [postsFolder, setPostsFolder] = useState<string | null>(null);
+  const refreshPostsFolder = useCallback(() => {
+    api.postsFolder().then(setPostsFolder, () => setPostsFolder(null));
+  }, []);
+  useEffect(() => {
+    refreshPostsFolder();
+    const unlisten = events.onConfigChanged(refreshPostsFolder);
+    return () => void unlisten.then((stop) => stop());
+  }, [refreshPostsFolder]);
+  const statuses = usePostStatuses(folder.tree, postsFolder);
+
+  // Writing mode: posts in the posts folder open in the editor, unless they aren't valid UTF-8.
+  const writing = doc.path !== null && writingModeFor(doc.path, postsFolder, doc.lossy);
+  const writerRef = useRef<WriterHandle | null>(null);
+  const [saveState, setSaveState] = useState<SaveState>("saved");
+  const [postStatus, setPostStatus] = useState<PostStatus>("draft");
+  const [writingHeadings, setWritingHeadings] = useState<Heading[]>([]);
+  const [activeHeading, setActiveHeading] = useState(0);
+  const jumpToHeading = useCallback((id: string) => writerRef.current?.jumpTo(id), []);
+  const lossyPost = doc.path !== null && doc.lossy && isPostPath(doc.path, postsFolder);
+  const lossyNoticeFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!lossyPost || !doc.path) {
+      lossyNoticeFor.current = null;
+      return;
+    }
+    if (lossyNoticeFor.current === doc.path) return;
+    lossyNoticeFor.current = doc.path;
+    notify(`${basename(doc.path)} isn't valid UTF-8, so Folio opened it read-only.`);
+  }, [lossyPost, doc.path, notify]);
+
+  /**
+   * Saves the open post before leaving it. Resolves false when the save failed and Alex chose to
+   * stay; callers then keep the post open. Also used for quit, close and Install & Relaunch.
+   */
+  const leaveOpenPost = useCallback(
+    () => leavePost(writerRef.current, doc.path, (message) => ask(message, { kind: "warning", okLabel: "Leave", cancelLabel: "Stay" })),
+    [doc.path],
+  );
+  // The tree's paths are canonical, like postsFolder, even when the folder was opened through a symlink.
+  const treeRoot = folder.tree?.root.path ?? folder.root;
+  const inPostsFolder = postsFolder !== null && treeRoot !== null && (treeRoot === postsFolder || isPostPath(`${treeRoot}/x.md`, postsFolder));
+  const [newPostOpen, setNewPostOpen] = useState(false);
+  useEffect(() => {
+    if (!inPostsFolder) setNewPostOpen(false);
+  }, [inPostsFolder]);
 
   // Updates
   const updater = useMemo(
@@ -116,21 +175,27 @@ export function App() {
   const makeDefaultApp = useCallback(() => {
     api.makeDefaultMarkdownApp().then(refreshDefaultApp, (e) => notify(`Couldn't make Folio the default: ${String(e)}.`));
   }, [refreshDefaultApp, notify]);
-  const hasDocument = doc.rendered !== null && !doc.isEmpty && !doc.pendingLarge;
+  const hasDocument = writing || (doc.rendered !== null && !doc.isEmpty && !doc.pendingLarge);
 
+  /** Resolves true once `path` is open; false when Alex stayed on the open post or it failed. */
   const openFile = useCallback(
     async (path: string, target: string | null = null) => {
-      if (await openDocument(path)) setFragment(target);
+      if (!(await leaveOpenPost())) return false;
+      if (!(await openDocument(path))) return false;
+      setFragment(target);
+      return true;
     },
-    [openDocument],
+    [openDocument, leaveOpenPost],
   );
 
   const openFolder = useCallback(
     async (root: string) => {
-      if (await openTree(root)) {
+      const opened = await openTree(root);
+      if (opened) {
         setSidebarOpen(true);
         void store.update({ lastFolder: home ? abbreviateHome(root, home) : root });
       }
+      return opened;
     },
     [openTree, store, home],
   );
@@ -142,6 +207,104 @@ export function App() {
     restored.current = true;
     if (settings.lastFolder) void openTree(expandHome(settings.lastFolder, home));
   }, [loaded, home, settings.lastFolder, openTree]);
+
+  /** Asks for a posts folder if none is set, then opens it. Resolves true when it is open. */
+  const ensurePostsFolder = useCallback(async () => {
+    let folderPath = await api.postsFolder().catch(() => null);
+    if (!folderPath) {
+      try {
+        folderPath = await api.choosePostsFolder();
+      } catch (e) {
+        notify(String(e));
+        return false;
+      }
+      if (!folderPath) return false;
+    }
+    setPostsFolder(folderPath);
+    return openFolder(folderPath);
+  }, [notify, openFolder]);
+
+  const openPosts = useCallback(async () => {
+    await ensurePostsFolder();
+  }, [ensurePostsFolder]);
+
+  /** Creates a draft and opens it; resolves false (after a toast) when it couldn't be created. */
+  const newPost = useCallback(
+    (title: string) => createAndOpenPost(title, { create: api.createPost, open: (path) => openFile(path), notify }),
+    [openFile, notify],
+  );
+  /** ⌘N: show the title box, opening the posts folder first when it isn't the open folder. */
+  const startNewPost = useCallback(async () => {
+    if (!inPostsFolder && !(await ensurePostsFolder())) return;
+    setSidebarOpen(true);
+    setNewPostOpen(true);
+  }, [inPostsFolder, ensurePostsFolder]);
+
+  /** Puts the open post on the clipboard as formatted text for pasting into Substack. */
+  const copyForSubstack = useCallback(async () => {
+    const writer = writerRef.current;
+    if (!writer) return;
+    const r = toSubstack(writer.text());
+    try {
+      await writeHtml(r.html, r.text);
+      notify(copyMessage(r));
+    } catch (e) {
+      notify(`Couldn't copy: ${String(e).replace(/\.$/, "")}.`);
+    }
+  }, [notify]);
+  /** Flips draft and published in the post's frontmatter as one undoable edit; autosave writes it. */
+  const toggleStatus = useCallback(() => {
+    const writer = writerRef.current;
+    if (!writer) return;
+    const text = writer.text();
+    const next = readStatus(text) === "published" ? "draft" : "published";
+    const result = setStatus(text, next, localDate(new Date()));
+    if (!result.ok) notify("This post's frontmatter couldn't be read. Fix it by hand to change its status.");
+    else writer.replace(result.text);
+  }, [notify]);
+
+  const onMenuAction = useEffectEvent((id: string) => {
+    if (id === "copy-for-substack") {
+      if (writing) void copyForSubstack();
+      return;
+    }
+    if (id === "quit") {
+      // Acknowledge first so Rust's 3 s fallback doesn't exit under a Leave/Stay dialog.
+      void api.quitAcknowledged();
+      void leaveOpenPost().then((left) => {
+        if (left) void api.quit();
+      });
+      return;
+    }
+    if (id === "new-post") void startNewPost();
+    else if (id === "open-posts") void openPosts();
+  });
+  useEffect(() => {
+    const unlisten = events.onMenuAction((id) => onMenuAction(id));
+    return () => void unlisten.then((stop) => stop());
+  }, []);
+
+  // Closing the window saves the open post first; Stay on a failed save keeps the window open.
+  const onCloseRequested = useEffectEvent(async () => {
+    if (await leaveOpenPost()) await getCurrentWindow().destroy();
+  });
+  useEffect(() => {
+    const unlisten = getCurrentWindow().onCloseRequested((event) => {
+      event.preventDefault();
+      void onCloseRequested();
+    });
+    return () => void unlisten.then((stop) => stop());
+  }, []);
+
+  // Save first: once the folder changes, Rust refuses writes to a post from the old one.
+  const choosePostsFolder = useCallback(async () => {
+    if (!(await leaveOpenPost())) return;
+    api.choosePostsFolder().then(refreshPostsFolder, (e) => notify(String(e)));
+  }, [leaveOpenPost, refreshPostsFolder, notify]);
+  const clearPostsFolder = useCallback(async () => {
+    if (!(await leaveOpenPost())) return;
+    api.clearPostsFolder().then(refreshPostsFolder, (e) => notify(String(e)));
+  }, [leaveOpenPost, refreshPostsFolder, notify]);
 
   const chooseFile = useCallback(async () => {
     const path = await openDialog({ multiple: false, directory: false, filters: [{ name: "Markdown", extensions: ["md", "markdown"] }] });
@@ -191,15 +354,23 @@ export function App() {
     [openFile, notify],
   );
 
+  /** ⌘F: CodeMirror's search while writing, the find bar while reading. */
   const openFind = useCallback(() => {
+    if (writing) {
+      writerRef.current?.openSearch();
+      return;
+    }
     setFindOpen(true);
     setFindFocus((n) => n + 1);
-  }, []);
+  }, [writing]);
 
-  const openInEditor = useCallback(() => {
-    if (!doc.path) return;
+  const openInEditor = useCallback(async () => {
+    const path = doc.path;
+    if (!path) return;
     const command = settings.editorCommand;
-    api.openInEditor(doc.path, command).catch(() => notify(`Couldn't run \`${command}\` — set your editor in Settings`));
+    // Save first so the editor opens what's on screen. A failed save has already been reported.
+    await writerRef.current?.flush().catch(() => {});
+    api.openInEditor(path, command).catch(() => notify(`Couldn't run \`${command}\` — set your editor in Settings`));
   }, [doc.path, settings.editorCommand, notify]);
 
   // Keyboard
@@ -222,7 +393,7 @@ export function App() {
         openFind();
         return true;
       case "open-in-editor":
-        openInEditor();
+        void openInEditor();
         return true;
       case "font-bigger":
         updateSettings({ fontSize: settings.fontSize + 1 });
@@ -239,7 +410,7 @@ export function App() {
     }
   });
   const onEscape = useEffectEvent((): boolean => {
-    if (findOpen) {
+    if (findOpen && !writing) {
       setFindOpen(false);
       return true;
     }
@@ -265,6 +436,21 @@ export function App() {
   let body: ReactNode = null;
   if (doc.pendingLarge) {
     body = <LargeFilePrompt {...doc.pendingLarge} onConfirm={() => void doc.confirmLarge()} onCancel={doc.cancelLarge} />;
+  } else if (writing && doc.path && doc.text !== null) {
+    body = (
+      <WriteView
+        key={doc.path}
+        path={doc.path}
+        diskText={doc.text}
+        removed={doc.removed}
+        onState={setSaveState}
+        onHeadings={setWritingHeadings}
+        onStatus={setPostStatus}
+        onActiveHeading={setActiveHeading}
+        handleRef={writerRef}
+        notify={notify}
+      />
+    );
   } else if (doc.path && doc.rendered) {
     body = (
       <DocumentView
@@ -288,17 +474,28 @@ export function App() {
     );
   }
 
-  const headings = doc.rendered && !doc.isEmpty ? doc.rendered.headings : [];
+  const headings = writing ? writingHeadings : doc.rendered && !doc.isEmpty ? doc.rendered.headings : [];
   const showToc = tocOpen && !doc.pendingLarge && headings.length >= MIN_TOC_HEADINGS;
 
   return (
     <div className="app">
       {sidebarOpen && folder.root && (
-        <Sidebar key={folder.root} root={folder.root} tree={folder.tree} currentPath={doc.path} onOpen={(path) => void openFile(path)} />
+        <Sidebar
+          key={folder.root}
+          root={folder.root}
+          tree={folder.tree}
+          currentPath={doc.path}
+          onOpen={(path) => void openFile(path)}
+          statuses={statuses}
+          onNewPost={inPostsFolder ? () => setNewPostOpen(true) : undefined}
+          newPostBox={newPostOpen && inPostsFolder ? <NewPostBox onCreate={newPost} onClose={() => setNewPostOpen(false)} /> : undefined}
+        />
       )}
       <main className="main">
         <Toolbar
           title={doc.path ? basename(doc.path) : "Folio"}
+          saveState={writing ? saveState : undefined}
+          post={writing ? { status: postStatus, onCopy: () => void copyForSubstack(), onToggleStatus: toggleStatus } : undefined}
           theme={shownTheme}
           themes={themesFor(appearance)}
           onTheme={(theme) => updateSettings(appearance === "light" ? { lightTheme: theme } : { darkTheme: theme })}
@@ -307,20 +504,24 @@ export function App() {
           onToggleSidebar={() => setSidebarOpen((open) => !open)}
           hasDocument={hasDocument}
           onFind={openFind}
-          onOpenInEditor={openInEditor}
+          onOpenInEditor={() => void openInEditor()}
           tocOpen={tocOpen}
           onToggleToc={() => setTocOpen((open) => !open)}
           settingsOpen={settingsOpen}
           onSettings={() => setSettingsOpen((open) => !open)}
         />
-        {findOpen && doc.rendered && <FindBar scrollRef={scrollRef} html={doc.rendered.html} focusSignal={findFocus} onClose={closeFind} />}
+        {findOpen && !writing && doc.rendered && <FindBar scrollRef={scrollRef} html={doc.rendered.html} focusSignal={findFocus} onClose={closeFind} />}
         <UpdateBanner
           state={updateState}
           onWhatsNew={(version) => openUrl(releaseNotesUrl(version)).catch((e) => notify(`Couldn't open link: ${String(e)}`))}
           onLater={updater.dismiss}
-          onInstall={() => void updater.install(doc.path)}
+          onInstall={() =>
+            void leaveOpenPost().then((left) => {
+              if (left) void updater.install(doc.path);
+            })
+          }
         />
-        <div className="doc-scroll" ref={scrollRef}>
+        <div className={writing ? "doc-scroll writing" : "doc-scroll"} ref={scrollRef}>
           {body}
         </div>
         {settingsOpen && (
@@ -330,12 +531,15 @@ export function App() {
             invalid={invalid}
             defaultApp={defaultApp}
             onMakeDefault={makeDefaultApp}
+            onChoosePostsFolder={() => void choosePostsFolder()}
+            onClearPostsFolder={() => void clearPostsFolder()}
             onChange={updateSettings}
             onClose={() => setSettingsOpen(false)}
           />
         )}
       </main>
-      {showToc && doc.rendered && <Toc headings={headings} html={doc.rendered.html} scrollRef={scrollRef} />}
+      {showToc && writing && <Toc headings={headings} html="" scrollRef={scrollRef} onJump={jumpToHeading} activeIndex={activeHeading} />}
+      {showToc && !writing && doc.rendered && <Toc headings={headings} html={doc.rendered.html} scrollRef={scrollRef} />}
       <Toasts toasts={toasts} onDismiss={dismiss} />
     </div>
   );
