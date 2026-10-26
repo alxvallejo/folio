@@ -16,6 +16,8 @@ export interface Autosave {
 
 interface Options {
   path: string;
+  /** What is on disk now; seeds the unsaved check so deleting everything still saves. */
+  initialText: string;
   save: (path: string, text: string) => Promise<void>;
   delayMs?: number;
   onError: (message: string) => void;
@@ -39,14 +41,14 @@ export function createAutosave(opts: Options): Autosave {
   const setTimer = opts.setTimer ?? ((fn, ms) => setTimeout(fn, ms));
   const clearTimer = opts.clearTimer ?? ((id) => clearTimeout(id));
 
-  let latest = "";
-  let lastSaved = "";
+  let latest = opts.initialText;
+  let lastSaved = opts.initialText;
   let current: SaveState = "saved";
   let timer: ReturnType<typeof setTimeout> | null = null;
   let chain: Promise<void> = Promise.resolve();
   let errored = false;
   let disposed = false;
-  let recent: string[] = [];
+  let recent: string[] = [opts.initialText];
   const listeners = new Set<() => void>();
 
   function setState(next: SaveState) {
@@ -71,20 +73,29 @@ export function createAutosave(opts: Options): Autosave {
     recent = [...recent, text].slice(-OWN_WRITES);
     try {
       await save(path, text);
-      lastSaved = text;
-      errored = false;
-      setState(latest === text ? "saved" : "unsaved");
     } catch (err) {
-      setState("error");
-      if (!errored) onError(errorMessage(path, err));
+      const first = !errored;
       errored = true;
+      try {
+        if (first) onError(errorMessage(path, err));
+      } finally {
+        setState("error");
+      }
+      // flush() and dispose() callers need to know the write failed.
+      throw err;
     }
+    lastSaved = text;
+    errored = false;
+    setState(latest === text ? "saved" : "unsaved");
   }
 
   // Writes queue behind each other, so two saves are never in flight at once.
+  // The stored chain swallows failures so one bad write never blocks the next;
+  // the returned promise still rejects for callers that wait on it.
   function enqueue(): Promise<void> {
-    chain = chain.then(writeLatest);
-    return chain;
+    const run = chain.then(writeLatest);
+    chain = run.catch(() => {});
+    return run;
   }
 
   return {
@@ -93,10 +104,12 @@ export function createAutosave(opts: Options): Autosave {
       latest = text;
       cancelTimer();
       // An edit while a save is in flight is still unsaved until the next write.
-      setState(text === lastSaved && current !== "saving" ? "saved" : "unsaved");
+      setState(
+        text === lastSaved && current !== "saving" ? "saved" : "unsaved",
+      );
       timer = setTimer(() => {
         timer = null;
-        void enqueue();
+        enqueue().catch(() => {}); // already reported through state and onError
       }, delayMs);
     },
     flush() {
@@ -118,9 +131,12 @@ export function createAutosave(opts: Options): Autosave {
     },
     async dispose() {
       cancelTimer();
-      await enqueue();
-      disposed = true;
-      listeners.clear();
+      try {
+        await enqueue();
+      } finally {
+        disposed = true;
+        listeners.clear();
+      }
     },
   };
 }

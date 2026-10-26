@@ -9,7 +9,12 @@ const ok = () => vi.fn(async (_path: string, _text: string) => {});
 describe("autosave", () => {
   it("debounces", async () => {
     const save = ok();
-    const a = createAutosave({ path: "/p/a.md", save, onError: vi.fn() });
+    const a = createAutosave({
+      path: "/p/a.md",
+      save,
+      initialText: "",
+      onError: vi.fn(),
+    });
     a.edit("one");
     await vi.advanceTimersByTimeAsync(300);
     a.edit("two");
@@ -25,8 +30,18 @@ describe("autosave", () => {
 
   it("flush_saves_now_to_its_own_path", async () => {
     const save = ok();
-    const a = createAutosave({ path: "/p/a.md", save, onError: vi.fn() });
-    const b = createAutosave({ path: "/p/b.md", save, onError: vi.fn() });
+    const a = createAutosave({
+      path: "/p/a.md",
+      save,
+      initialText: "",
+      onError: vi.fn(),
+    });
+    const b = createAutosave({
+      path: "/p/b.md",
+      save,
+      initialText: "",
+      onError: vi.fn(),
+    });
     a.edit("x");
     await a.flush();
     expect(save).toHaveBeenCalledTimes(1);
@@ -43,7 +58,12 @@ describe("autosave", () => {
     const save = vi.fn(
       (_p: string, _t: string) => new Promise<void>((r) => resolvers.push(r)),
     );
-    const a = createAutosave({ path: "/p/a.md", save, onError: vi.fn() });
+    const a = createAutosave({
+      path: "/p/a.md",
+      save,
+      initialText: "",
+      onError: vi.fn(),
+    });
     a.edit("v1");
     await vi.advanceTimersByTimeAsync(1000);
     expect(save).toHaveBeenCalledTimes(1);
@@ -61,7 +81,12 @@ describe("autosave", () => {
   });
 
   it("own_echo_is_ignored_after_more_typing", async () => {
-    const a = createAutosave({ path: "/p/a.md", save: ok(), onError: vi.fn() });
+    const a = createAutosave({
+      path: "/p/a.md",
+      save: ok(),
+      initialText: "",
+      onError: vi.fn(),
+    });
     a.edit("v1");
     await a.flush();
     a.edit("v2");
@@ -70,7 +95,12 @@ describe("autosave", () => {
   });
 
   it("outside_change_reloads_when_clean_and_conflicts_when_dirty", async () => {
-    const a = createAutosave({ path: "/p/a.md", save: ok(), onError: vi.fn() });
+    const a = createAutosave({
+      path: "/p/a.md",
+      save: ok(),
+      initialText: "",
+      onError: vi.fn(),
+    });
     expect(decideDiskChange("other", a, "mine0")).toBe("reload");
     a.edit("mine");
     expect(decideDiskChange("other", a, "mine")).toBe("conflict");
@@ -85,7 +115,12 @@ describe("autosave", () => {
       .mockRejectedValueOnce("No such file.")
       .mockResolvedValue(undefined);
     const onError = vi.fn();
-    const a = createAutosave({ path: "/p/a.md", save, onError });
+    const a = createAutosave({
+      path: "/p/a.md",
+      save,
+      initialText: "",
+      onError,
+    });
     a.edit("x");
     await vi.advanceTimersByTimeAsync(1000);
     expect(a.state()).toBe("error");
@@ -100,7 +135,12 @@ describe("autosave", () => {
   it("reports one error per streak and adds the period when missing", async () => {
     const save = vi.fn().mockRejectedValue(new Error("denied"));
     const onError = vi.fn();
-    const a = createAutosave({ path: "/p/a.md", save, onError });
+    const a = createAutosave({
+      path: "/p/a.md",
+      save,
+      initialText: "",
+      onError,
+    });
     a.edit("x");
     await vi.advanceTimersByTimeAsync(1000);
     a.edit("xy");
@@ -110,7 +150,12 @@ describe("autosave", () => {
   });
 
   it("remembers only the last 5 writes as own", async () => {
-    const a = createAutosave({ path: "/p/a.md", save: ok(), onError: vi.fn() });
+    const a = createAutosave({
+      path: "/p/a.md",
+      save: ok(),
+      initialText: "",
+      onError: vi.fn(),
+    });
     for (let i = 1; i <= 6; i++) {
       a.edit(`t${i}`);
       await a.flush();
@@ -122,7 +167,12 @@ describe("autosave", () => {
 
   it("markSaved cancels a pending save and marks clean", async () => {
     const save = ok();
-    const a = createAutosave({ path: "/p/a.md", save, onError: vi.fn() });
+    const a = createAutosave({
+      path: "/p/a.md",
+      save,
+      initialText: "",
+      onError: vi.fn(),
+    });
     a.edit("mine");
     a.markSaved("disk");
     await vi.advanceTimersByTimeAsync(2000);
@@ -132,7 +182,12 @@ describe("autosave", () => {
 
   it("dispose flushes pending text and then ignores edits", async () => {
     const save = ok();
-    const a = createAutosave({ path: "/p/a.md", save, onError: vi.fn() });
+    const a = createAutosave({
+      path: "/p/a.md",
+      save,
+      initialText: "",
+      onError: vi.fn(),
+    });
     a.edit("last words");
     await a.dispose();
     expect(save).toHaveBeenCalledWith("/p/a.md", "last words");
@@ -142,7 +197,12 @@ describe("autosave", () => {
   });
 
   it("notifies subscribers on state changes", async () => {
-    const a = createAutosave({ path: "/p/a.md", save: ok(), onError: vi.fn() });
+    const a = createAutosave({
+      path: "/p/a.md",
+      save: ok(),
+      initialText: "",
+      onError: vi.fn(),
+    });
     const fn = vi.fn();
     const off = a.subscribe(fn);
     a.edit("x");
@@ -151,5 +211,70 @@ describe("autosave", () => {
     fn.mockClear();
     await a.flush();
     expect(fn).not.toHaveBeenCalled();
+  });
+
+  it("saves an emptied document", async () => {
+    const save = ok();
+    const a = createAutosave({
+      path: "/p/a.md",
+      save,
+      initialText: "old",
+      onError: vi.fn(),
+    });
+    a.edit("");
+    expect(a.state()).toBe("unsaved");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(save).toHaveBeenCalledWith("/p/a.md", "");
+  });
+
+  it("keeps saving after a subscriber throws", async () => {
+    const save = ok();
+    const a = createAutosave({
+      path: "/p/a.md",
+      save,
+      initialText: "",
+      onError: vi.fn(),
+    });
+    let boom = true;
+    a.subscribe(() => {
+      if (boom && a.state() === "saving") {
+        boom = false;
+        throw new Error("subscriber");
+      }
+    });
+    a.edit("x");
+    await vi.advanceTimersByTimeAsync(1000);
+    a.edit("xy");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(save).toHaveBeenLastCalledWith("/p/a.md", "xy");
+    expect(a.state()).toBe("saved");
+  });
+
+  it("flush and dispose reject when the write fails", async () => {
+    const save = vi
+      .fn<(p: string, t: string) => Promise<void>>()
+      .mockRejectedValueOnce("disk full")
+      .mockRejectedValueOnce("disk full")
+      .mockResolvedValue(undefined);
+    const onError = vi.fn();
+    const a = createAutosave({
+      path: "/p/a.md",
+      save,
+      initialText: "",
+      onError,
+    });
+    a.edit("x");
+    await expect(a.flush()).rejects.toBe("disk full");
+    expect(onError).toHaveBeenCalledTimes(1);
+    await expect(a.dispose()).rejects.toBe("disk full");
+    expect(onError).toHaveBeenCalledTimes(1);
+    const b = createAutosave({
+      path: "/p/b.md",
+      save,
+      initialText: "",
+      onError,
+    });
+    b.edit("y");
+    await expect(b.flush()).resolves.toBeUndefined();
   });
 });
