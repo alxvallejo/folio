@@ -28,6 +28,10 @@ export function toSubstack(markdown: string): SubstackCopy {
     droppedImages++;
     if (parent && parent.tagName === "P" && !parent.textContent?.trim() && parent.children.length === 0) parent.remove();
   }
+  // Links into Alex's own files or headings mean nothing on Substack: keep their text only.
+  for (const a of Array.from(doc.querySelectorAll("a"))) {
+    if (!/^(https?:\/\/|mailto:)/i.test(a.getAttribute("href") ?? "")) a.replaceWith(...Array.from(a.childNodes));
+  }
   for (const el of Array.from(doc.body.querySelectorAll("*"))) {
     for (const name of el.getAttributeNames()) {
       if (name === "id" || name === "class" || name === "style" || name.startsWith("data-")) el.removeAttribute(name);

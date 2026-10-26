@@ -25,6 +25,7 @@ import { EmptyState } from "./EmptyState";
 import { FindBar } from "./FindBar";
 import { leavePost } from "./leavePost";
 import { NewPostBox } from "./NewPostBox";
+import { createAndOpenPost } from "./newPost";
 import { scrollToFragment } from "./scroll";
 import { SettingsPanel } from "./SettingsPanel";
 import { actionFor, type Action } from "./shortcuts";
@@ -174,10 +175,13 @@ export function App() {
   }, [refreshDefaultApp, notify]);
   const hasDocument = writing || (doc.rendered !== null && !doc.isEmpty && !doc.pendingLarge);
 
+  /** Resolves true once `path` is open; false when Alex stayed on the open post or it failed. */
   const openFile = useCallback(
     async (path: string, target: string | null = null) => {
-      if (!(await leaveOpenPost())) return;
-      if (await openDocument(path)) setFragment(target);
+      if (!(await leaveOpenPost())) return false;
+      if (!(await openDocument(path))) return false;
+      setFragment(target);
+      return true;
     },
     [openDocument, leaveOpenPost],
   );
@@ -222,17 +226,9 @@ export function App() {
     await ensurePostsFolder();
   }, [ensurePostsFolder]);
 
-  /** Creates a draft and opens it; resolves false (after a toast) when that failed. */
+  /** Creates a draft and opens it; resolves false (after a toast) when it couldn't be created. */
   const newPost = useCallback(
-    async (title: string) => {
-      try {
-        await openFile(await api.createPost(title));
-        return true;
-      } catch (e) {
-        notify(String(e));
-        return false;
-      }
-    },
+    (title: string) => createAndOpenPost(title, { create: api.createPost, open: (path) => openFile(path), notify }),
     [openFile, notify],
   );
   /** ⌘N: show the title box, opening the posts folder first when it isn't the open folder. */

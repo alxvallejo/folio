@@ -18,6 +18,10 @@ describe("toSubstack", () => {
     expect(r.html).toContain("https://x.y/b.png");
     expect(r.html).not.toContain("pic.png");
   });
+  it("unwraps links that aren't web or mail links, keeping their text", () => {
+    const { html } = toSubstack("See [notes](./notes.md), [top](#top), [web](https://a.b) and [mail](mailto:a@b.co).");
+    expect(html.trim()).toBe('<p>See notes, top, <a href="https://a.b">web</a> and <a href="mailto:a@b.co">mail</a>.</p>');
+  });
   it("renders code blocks plainly", () => expect(toSubstack("```js\nx\n```").html).toContain("<pre><code>x\n</code></pre>"));
   it("handles a CRLF post", () => {
     const r = toSubstack("---\r\nstatus: draft\r\n---\r\n\r\n# T\r\n\r\nBody\r\n");
