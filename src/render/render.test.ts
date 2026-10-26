@@ -143,6 +143,13 @@ describe("createRenderer", () => {
     ]);
   });
 
+  it("hides frontmatter", () => {
+    const out = html("---\nstatus: draft\n---\n\n# Hi\n");
+    expect(out).toContain("<h1");
+    expect(out).not.toContain("status");
+    expect(html("---\nIntro\n---\n")).toContain("Intro");
+  });
+
   it("renders the GFM fixture", async () => {
     await expect(html(fixture, "/specs")).toMatchFileSnapshot("./__snapshots__/gfm.html");
   });
