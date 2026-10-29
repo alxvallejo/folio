@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Tree, TreeNode } from "../lib/api";
-import { isPostPath, postFilesIn, postLabel, wordCount, writingModeFor } from "./posts";
+import { isPostPath, postFilesIn, postLabel, postsFolderShown, wordCount, writingModeFor } from "./posts";
 
 const file = (path: string): TreeNode => ({ name: path.slice(path.lastIndexOf("/") + 1), path, isDir: false, children: [] });
 const dir = (path: string, children: TreeNode[]): TreeNode => ({ name: path.slice(path.lastIndexOf("/") + 1), path, isDir: true, children });
@@ -53,5 +53,25 @@ describe("postLabel", () => {
   it("shows the status and the word count", () => {
     expect(postLabel("---\nstatus: draft\n---\n\n# Hi there\n\nOne two.")).toBe("Draft · 4 words");
     expect(postLabel("---\nstatus: published\n---\n\nOne")).toBe("Published · 1 word");
+  });
+});
+
+describe("postsFolderShown", () => {
+  it("is true when the sidebar is the posts folder, a folder in it, or a folder holding it", () => {
+    expect(postsFolderShown("/u/Folio/Posts", "/u/Folio/Posts")).toBe(true);
+    expect(postsFolderShown("/u/Folio/Posts/2026", "/u/Folio/Posts")).toBe(true);
+    expect(postsFolderShown("/u/Folio", "/u/Folio/Posts")).toBe(true);
+    expect(postsFolderShown("/u/Folio/", "/u/Folio/Posts/")).toBe(true);
+  });
+
+  it("is false for unrelated folders and look-alike names", () => {
+    expect(postsFolderShown("/u/Notes", "/u/Folio/Posts")).toBe(false);
+    expect(postsFolderShown("/u/Folio/Posts2", "/u/Folio/Posts")).toBe(false);
+    expect(postsFolderShown("/u/Fol", "/u/Folio/Posts")).toBe(false);
+  });
+
+  it("is false when either folder is missing", () => {
+    expect(postsFolderShown(null, "/u/Folio/Posts")).toBe(false);
+    expect(postsFolderShown("/u/Folio", null)).toBe(false);
   });
 });

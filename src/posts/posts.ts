@@ -7,6 +7,17 @@ export function isPostPath(path: string, postsFolder: string | null): boolean {
   return postsFolder !== null && path.startsWith(`${postsFolder.replace(/\/$/, "")}/`) && isMarkdownPath(path);
 }
 
+/**
+ * Whether the sidebar already shows the posts folder: it is the posts folder, a folder inside it,
+ * or a folder holding it (such as ~/Documents/Folio around Posts and Reports).
+ */
+export function postsFolderShown(root: string | null, postsFolder: string | null): boolean {
+  if (root === null || postsFolder === null) return false;
+  const r = root.replace(/\/$/, "");
+  const p = postsFolder.replace(/\/$/, "");
+  return r === p || r.startsWith(`${p}/`) || p.startsWith(`${r}/`);
+}
+
 /** Posts open for writing, unless they aren't valid UTF-8: saving would replace the undecodable bytes. */
 export function writingModeFor(path: string, postsFolder: string | null, lossy: boolean): boolean {
   return !lossy && isPostPath(path, postsFolder);

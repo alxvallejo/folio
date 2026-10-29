@@ -11,7 +11,7 @@ import { api, events, type DefaultApp } from "../lib/api";
 import { abbreviateHome, basename, expandHome } from "../lib/paths";
 import type { SaveState } from "../editor/autosave";
 import { localDate, readStatus, setStatus, type PostStatus } from "../posts/frontmatter";
-import { isPostPath, writingModeFor } from "../posts/posts";
+import { isPostPath, postsFolderShown, writingModeFor } from "../posts/posts";
 import { copyMessage, toSubstack } from "../posts/substack";
 import type { Heading } from "../render";
 import { DEFAULT_FONT_SIZE } from "../settings/schema";
@@ -120,7 +120,7 @@ export function App() {
   );
   // The tree's paths are canonical, like postsFolder, even when the folder was opened through a symlink.
   const treeRoot = folder.tree?.root.path ?? folder.root;
-  const inPostsFolder = postsFolder !== null && treeRoot !== null && (treeRoot === postsFolder || isPostPath(`${treeRoot}/x.md`, postsFolder));
+  const inPostsFolder = postsFolderShown(treeRoot, postsFolder);
 
   // Updates
   const updater = useMemo(
