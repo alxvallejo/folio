@@ -18,6 +18,8 @@ describe("effectiveSettings", () => {
       postsFolder: null,
       autoUpdateCheck: true,
       defaultAppAsked: false,
+      recentFiles: [],
+      recentOpen: true,
     });
     expect(effectiveSettings({})).toEqual(DEFAULTS);
   });
@@ -143,5 +145,23 @@ describe("parse and serialize", () => {
 
   it("serializes with two-space indent and a trailing newline", () => {
     expect(serializeConfig({ lightTheme: "citrus" })).toBe('{\n  "lightTheme": "citrus"\n}\n');
+  });
+});
+
+describe("recent files", () => {
+  it("keeps trimmed string paths, up to the limit", () => {
+    expect(effectiveSettings({ recentFiles: [" ~/a.md ", 7, "", "/b.md"] }).recentFiles).toEqual(["~/a.md", "/b.md"]);
+    expect(effectiveSettings({ recentFiles: "~/a.md" }).recentFiles).toEqual([]);
+    expect(effectiveSettings({ recentFiles: Array.from({ length: 20 }, (_, i) => `/${i}.md`) }).recentFiles).toHaveLength(8);
+  });
+
+  it("writes the list, and removes the key when it's emptied", () => {
+    expect(applyPatch({}, { recentFiles: ["~/a.md"] })).toEqual({ recentFiles: ["~/a.md"] });
+    expect(applyPatch({ recentFiles: ["~/a.md"] }, { recentFiles: [] })).toEqual({});
+  });
+
+  it("remembers a collapsed Recent section", () => {
+    expect(applyPatch({}, { recentOpen: false })).toEqual({ recentOpen: false });
+    expect(effectiveSettings({ recentOpen: false }).recentOpen).toBe(false);
   });
 });

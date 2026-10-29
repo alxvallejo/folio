@@ -25,6 +25,7 @@ import { EmptyState } from "./EmptyState";
 import { FindBar } from "./FindBar";
 import { leavePost } from "./leavePost";
 import { createAndOpenPost } from "./newPost";
+import { forgetRecent, pushRecent, renameRecent } from "./recent";
 import { scrollToFragment } from "./scroll";
 import { SettingsPanel } from "./SettingsPanel";
 import { actionFor, type Action } from "./shortcuts";
@@ -193,6 +194,44 @@ export function App() {
       return opened;
     },
     [openTree, store, home],
+  );
+
+  // Recent files, kept `~`-abbreviated in config.json like lastFolder. The ref holds the latest
+  // list, so opens in quick succession each build on the one before rather than on stale settings.
+  const recentRef = useRef(settings.recentFiles);
+  useEffect(() => {
+    recentRef.current = settings.recentFiles;
+  }, [settings.recentFiles]);
+  const tilde = useCallback((path: string) => (home ? abbreviateHome(path, home) : path), [home]);
+  const recentPaths = useMemo(() => (home ? settings.recentFiles.map((p) => expandHome(p, home)) : settings.recentFiles), [settings.recentFiles, home]);
+  const updateRecent = useCallback(
+    (change: (list: string[]) => string[]) => {
+      const next = change(recentRef.current);
+      if (next === recentRef.current) return;
+      recentRef.current = next;
+      void store.update({ recentFiles: next });
+    },
+    [store],
+  );
+  // Wait for settings, or a file opened at launch would replace the saved list.
+  useEffect(() => {
+    if (loaded && home !== null && doc.path) updateRecent((list) => pushRecent(list, tilde(doc.path!)));
+  }, [loaded, home, doc.path, tilde, updateRecent]);
+  const { rename: followDocumentRename } = doc;
+  const followRename = useCallback(
+    (from: string, to: string) => {
+      followDocumentRename(from, to);
+      updateRecent((list) => renameRecent(list, tilde(from), tilde(to)));
+    },
+    [followDocumentRename, tilde, updateRecent],
+  );
+  const openRecent = useCallback(
+    async (path: string) => {
+      if (await openFile(path)) return;
+      // Drop it only if the file is gone, not when Alex chose to stay on the open post.
+      api.readFile(path).catch(() => updateRecent((list) => forgetRecent(list, tilde(path))));
+    },
+    [openFile, tilde, updateRecent],
   );
 
   // Restore the last folder once settings and the home dir are known.
@@ -448,7 +487,7 @@ export function App() {
         onHeadings={setWritingHeadings}
         onStatus={setPostStatus}
         onActiveHeading={setActiveHeading}
-        onRenamed={doc.rename}
+        onRenamed={followRename}
         handleRef={writerRef}
         notify={notify}
       />
@@ -490,6 +529,10 @@ export function App() {
           onOpen={(path) => void openFile(path)}
           statuses={statuses}
           onNewPost={() => void startNewPost()}
+          recent={recentPaths}
+          recentOpen={settings.recentOpen}
+          onToggleRecent={() => updateSettings({ recentOpen: !settings.recentOpen })}
+          onOpenRecent={(path) => void openRecent(path)}
         />
       )}
       <main className="main">

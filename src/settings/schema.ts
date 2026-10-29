@@ -1,5 +1,6 @@
 import type { Appearance } from "../themes/apply";
 import { DEFAULT_THEMES, isThemeId, supportsMode, type Mode, type ThemeId } from "../themes/catalog";
+import { RECENT_LIMIT } from "../ui/recent";
 
 export interface Settings {
   lightTheme: ThemeId;
@@ -20,6 +21,10 @@ export interface Settings {
   autoUpdateCheck: boolean;
   /** Set once Folio has asked macOS to make it the default Markdown app; never shown in Settings. */
   defaultAppAsked: boolean;
+  /** `~`-abbreviated files opened lately, newest first, for the sidebar's Recent section. */
+  recentFiles: string[];
+  /** Whether the Recent section is expanded. */
+  recentOpen: boolean;
 }
 
 export type RawConfig = Record<string, unknown>;
@@ -47,6 +52,8 @@ export const DEFAULTS: Settings = {
   postsFolder: null,
   autoUpdateCheck: true,
   defaultAppAsked: false,
+  recentFiles: [],
+  recentOpen: true,
 };
 
 export const DEFAULT_FONT_SIZE = DEFAULTS.fontSize;
@@ -103,6 +110,8 @@ export function effectiveSettings(input: RawConfig): Settings {
     postsFolder: text(raw.postsFolder),
     autoUpdateCheck: typeof raw.autoUpdateCheck === "boolean" ? raw.autoUpdateCheck : DEFAULTS.autoUpdateCheck,
     defaultAppAsked: typeof raw.defaultAppAsked === "boolean" ? raw.defaultAppAsked : DEFAULTS.defaultAppAsked,
+    recentFiles: Array.isArray(raw.recentFiles) ? raw.recentFiles.map(text).filter((p): p is string => p !== null).slice(0, RECENT_LIMIT) : [],
+    recentOpen: typeof raw.recentOpen === "boolean" ? raw.recentOpen : DEFAULTS.recentOpen,
   };
 }
 
@@ -117,7 +126,7 @@ export function applyPatch(raw: RawConfig, patch: Partial<Settings>): RawConfig 
     if (value === undefined || key === "postsFolder") continue;
     if (typeof value === "number" && isNumericKey(key)) value = clampSetting(key, value);
     if (typeof value === "string" && FONT_KEYS.has(key)) value = value.trim() || null;
-    if (value === null || value === DEFAULTS[key]) delete next[key];
+    if (value === null || value === DEFAULTS[key] || (Array.isArray(value) && value.length === 0)) delete next[key];
     else next[key] = value;
   }
   return next;

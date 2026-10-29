@@ -36,6 +36,11 @@ button { font: inherit; color: inherit; }
 .chevron.open { transform: rotate(90deg); }
 .file-icon { flex-shrink: 0; color: var(--muted); }
 .sidebar-empty, .sidebar-note { margin: 0; padding: 8px 14px; color: var(--muted); }
+.sidebar-recent { flex-shrink: 0; padding-bottom: 6px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+.recent-toggle { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.sidebar-recent li .tree-row { padding-left: 24px; }
+.recent-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.recent-folder { margin-left: auto; padding-left: 8px; flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 11px; color: var(--muted); }
 
 /* Toolbar */
 .toolbar { height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 2px; padding: 0 8px; border-bottom: 1px solid var(--border); }

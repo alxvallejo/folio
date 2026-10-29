@@ -1,7 +1,7 @@
 import { ChevronRight, FileText } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Tree, TreeNode } from "../lib/api";
-import { basename } from "../lib/paths";
+import { basename, dirname } from "../lib/paths";
 import type { PostStatus } from "../posts/frontmatter";
 import { ancestorDirs } from "./tree";
 
@@ -14,9 +14,14 @@ interface Props {
   statuses?: Map<string, PostStatus>;
   /** Shows "+ New post"; outside the posts folder it opens (or first sets up) the posts folder. */
   onNewPost?: () => void;
+  /** Files opened lately, newest first (absolute paths). The section is hidden when empty. */
+  recent?: string[];
+  recentOpen?: boolean;
+  onToggleRecent?: () => void;
+  onOpenRecent?: (path: string) => void;
 }
 
-export function Sidebar({ root, tree, currentPath, onOpen, statuses, onNewPost }: Props) {
+export function Sidebar({ root, tree, currentPath, onOpen, statuses, onNewPost, recent = [], recentOpen = true, onToggleRecent, onOpenRecent = onOpen }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -50,6 +55,27 @@ export function Sidebar({ root, tree, currentPath, onOpen, statuses, onNewPost }
           </button>
         )}
       </div>
+      {recent.length > 0 && (
+        <div className="sidebar-recent">
+          <button className="tree-row recent-toggle" aria-expanded={recentOpen} onClick={onToggleRecent}>
+            <ChevronRight size={14} className={recentOpen ? "chevron open" : "chevron"} />
+            Recent
+          </button>
+          {recentOpen && (
+            <ul aria-label="Recent files">
+              {recent.map((path) => (
+                <li key={path}>
+                  <button className={path === currentPath ? "tree-row active" : "tree-row"} title={path} onClick={() => onOpenRecent(path)}>
+                    <FileText size={14} className="file-icon" />
+                    <span className="recent-name">{basename(path)}</span>
+                    <span className="recent-folder">{basename(dirname(path))}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
       <div className="sidebar-tree" ref={listRef}>
         {tree && tree.root.children.length > 0 && (
           <ul role="tree">
