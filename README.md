@@ -74,4 +74,4 @@ The script checks that you're on a clean, pushed `master` and that the tests pas
 
 ## Config
 
-Settings live in `~/.config/folio/config.json`. Besides posts you edit, it is the only file Folio writes.
+Settings live in `~/.config/folio/config.json`. Besides posts you edit, it is the only file Folio writes, apart from replacing its own app when you install an update. Folio never changes your other documents, and it only becomes the default Markdown app after you confirm the macOS dialog.

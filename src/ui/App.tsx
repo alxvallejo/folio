@@ -6,9 +6,10 @@ import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { writeHtml } from "@tauri-apps/plugin-clipboard-manager";
 import { check } from "@tauri-apps/plugin-updater";
 import { type ReactNode, useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ASK_DELAY_MS, askOnFirstLaunch } from "../defaultApp/defaultApp";
+import { ASK_DELAY_MS, askOnFirstLaunch, singleFlight } from "../defaultApp/defaultApp";
 import { api, events, type DefaultApp } from "../lib/api";
 import { abbreviateHome, basename, expandHome } from "../lib/paths";
+import { sentence } from "../lib/text";
 import type { SaveState } from "../editor/autosave";
 import { localDate, readStatus, setStatus, type PostStatus } from "../posts/frontmatter";
 import { isPostPath, postsFolderShown, writingModeFor } from "../posts/posts";
@@ -125,7 +126,7 @@ export function App() {
 
   // Updates
   const updater = useMemo(
-    () => createUpdater({ check: () => check({ timeout: 30_000 }), currentVersion: getVersion, relaunch: api.relaunch, notify }),
+    () => createUpdater({ check: () => check({ timeout: 30_000 }), canInstall: api.isInstalled, currentVersion: getVersion, relaunch: api.relaunch, notify }),
     [notify],
   );
   const updateState = useSyncExternalStore(updater.subscribe, updater.getState);
@@ -168,9 +169,23 @@ export function App() {
   useEffect(() => {
     if (settingsOpen) refreshDefaultApp();
   }, [settingsOpen, refreshDefaultApp]);
-  const makeDefaultApp = useCallback(() => {
-    api.makeDefaultMarkdownApp().then(refreshDefaultApp, (e) => notify(`Couldn't make Folio the default: ${String(e)}.`));
-  }, [refreshDefaultApp, notify]);
+  // One macOS dialog at a time: clicks while it is open are ignored, and the button shows as disabled.
+  const [makingDefault, setMakingDefault] = useState(false);
+  const makeDefaultApp = useMemo(
+    () =>
+      singleFlight(async () => {
+        setMakingDefault(true);
+        try {
+          await api.makeDefaultMarkdownApp();
+          refreshDefaultApp();
+        } catch (e) {
+          notify(sentence(`Couldn't make Folio the default: ${String(e)}`));
+        } finally {
+          setMakingDefault(false);
+        }
+      }),
+    [refreshDefaultApp, notify],
+  );
   const hasDocument = writing || (doc.rendered !== null && !doc.isEmpty && !doc.pendingLarge);
 
   /** Resolves true once `path` is open; false when Alex stayed on the open post or it failed. */
@@ -574,7 +589,8 @@ export function App() {
             shownTheme={shownTheme}
             invalid={invalid}
             defaultApp={defaultApp}
-            onMakeDefault={makeDefaultApp}
+            makingDefault={makingDefault}
+            onMakeDefault={() => void makeDefaultApp()}
             onChoosePostsFolder={() => void choosePostsFolder()}
             onClearPostsFolder={() => void clearPostsFolder()}
             onChange={updateSettings}

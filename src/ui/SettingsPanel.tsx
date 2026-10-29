@@ -13,6 +13,8 @@ interface Props {
   invalid: string | null;
   /** null until known, or when it can't be read; the row is hidden then. */
   defaultApp: DefaultApp | null;
+  /** True while the macOS dialog is open. */
+  makingDefault: boolean;
   onMakeDefault: () => void;
   onChoosePostsFolder: () => void;
   onClearPostsFolder: () => void;
@@ -20,7 +22,7 @@ interface Props {
   onClose: () => void;
 }
 
-export function SettingsPanel({ settings, shownTheme, invalid, defaultApp, onMakeDefault, onChoosePostsFolder, onClearPostsFolder, onChange, onClose }: Props) {
+export function SettingsPanel({ settings, shownTheme, invalid, defaultApp, makingDefault, onMakeDefault, onChoosePostsFolder, onClearPostsFolder, onChange, onClose }: Props) {
   const theme = THEMES[shownTheme];
   return (
     <aside className="settings-panel" aria-label="Settings">
@@ -68,7 +70,7 @@ export function SettingsPanel({ settings, shownTheme, invalid, defaultApp, onMak
           )}
         </div>
       </div>
-      <DefaultAppRow status={defaultApp} onMakeDefault={onMakeDefault} />
+      <DefaultAppRow status={defaultApp} busy={makingDefault} onMakeDefault={onMakeDefault} />
       <p className="settings-hint">Leave a font empty to use the theme's. Fonts accept any installed family name. Settings live in ~/.config/folio/config.json, which you can also edit by hand.</p>
     </aside>
   );
@@ -189,7 +191,7 @@ function RangeField({ label, range, value, format, onChange }: RangeFieldProps) 
   );
 }
 
-function DefaultAppRow({ status, onMakeDefault }: { status: DefaultApp | null; onMakeDefault: () => void }) {
+function DefaultAppRow({ status, busy, onMakeDefault }: { status: DefaultApp | null; busy: boolean; onMakeDefault: () => void }) {
   if (!status) return null;
   return (
     <div className="settings-default-app">
@@ -198,7 +200,7 @@ function DefaultAppRow({ status, onMakeDefault }: { status: DefaultApp | null; o
       </span>
       {!status.isFolio &&
         (status.canSet ? (
-          <button className="settings-button" onClick={onMakeDefault}>
+          <button className="settings-button" disabled={busy} onClick={onMakeDefault}>
             Make Folio Default
           </button>
         ) : (

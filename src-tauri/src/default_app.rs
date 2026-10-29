@@ -69,6 +69,12 @@ fn this_bundle(app: &AppHandle) -> Option<PathBuf> {
     crate::relaunch::bundle_root(&exe).map(Path::to_path_buf)
 }
 
+/// Whether this copy can be updated in place or made the default: a real install, not the DMG or a dev build.
+#[tauri::command]
+pub fn is_installed(app: AppHandle) -> bool {
+    this_bundle(&app).as_deref().is_some_and(is_installed_location)
+}
+
 #[tauri::command]
 pub fn default_markdown_app(app: AppHandle) -> Result<DefaultApp, String> {
     let ty = markdown_type()?;

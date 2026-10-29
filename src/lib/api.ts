@@ -57,6 +57,8 @@ export const api = {
   quitAcknowledged: () => invoke<void>("quit_acknowledged"),
   /** Exits Folio. Save the open post first. */
   quit: () => invoke<void>("quit"),
+  /** False when running from the DMG, a translocated copy or a dev build. */
+  isInstalled: () => invoke<boolean>("is_installed"),
   defaultMarkdownApp: () => invoke<DefaultApp>("default_markdown_app"),
   /** Shows the macOS confirmation dialog; resolves when the user answers. */
   makeDefaultMarkdownApp: () => invoke<"made" | "declined">("make_default_markdown_app"),

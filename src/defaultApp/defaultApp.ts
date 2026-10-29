@@ -6,6 +6,20 @@ export function shouldAsk({ asked, status }: { asked: boolean; status: DefaultAp
   return !asked && status.canSet && !status.isFolio;
 }
 
+/** Wraps `run` so calls made while one is still pending are ignored (a double-click opens one macOS dialog). */
+export function singleFlight(run: () => Promise<void>): () => Promise<void> {
+  let pending = false;
+  return async () => {
+    if (pending) return;
+    pending = true;
+    try {
+      await run();
+    } finally {
+      pending = false;
+    }
+  };
+}
+
 export interface FirstLaunchDeps {
   status(): Promise<DefaultApp>;
   /** Shows the macOS dialog. */

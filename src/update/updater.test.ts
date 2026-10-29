@@ -31,9 +31,10 @@ function fakeUpdate(version = "0.3.1") {
   return update;
 }
 
-function setup(check: UpdaterDeps["check"]) {
+function setup(check: UpdaterDeps["check"], installed = true) {
   const deps = {
     check: vi.fn(check),
+    canInstall: vi.fn(async () => installed),
     currentVersion: vi.fn(async () => "0.3.0"),
     relaunch: vi.fn(async (_path: string | null) => {}),
     notify: vi.fn(),
@@ -60,6 +61,19 @@ describe("automatic check", () => {
     updater.dismiss();
     await updater.checkAutomatically();
     expect(updater.getState()).toEqual({ kind: "dismissed" });
+  });
+
+  it("skips the automatic check when Folio can't be updated in place (DMG, translocated or dev build)", async () => {
+    const { updater, deps } = setup(async () => fakeUpdate(), false);
+    await updater.checkAutomatically();
+    expect(deps.check).not.toHaveBeenCalled();
+    expect(updater.getState()).toEqual({ kind: "idle" });
+  });
+
+  it("still checks from the menu when Folio can't be updated in place", async () => {
+    const { updater, deps } = setup(async () => fakeUpdate(), false);
+    await updater.checkManually();
+    expect(deps.check).toHaveBeenCalledTimes(1);
   });
 
   it("is silent when there is no update or the check fails", async () => {
@@ -133,6 +147,14 @@ describe("manual check", () => {
     });
     await updater.checkManually();
     expect(deps.notify).toHaveBeenCalledWith("Couldn't check for updates: error sending request.");
+  });
+
+  it("doesn't double the period when the reason already ends with one", async () => {
+    const { updater, deps } = setup(async () => {
+      throw new Error("The network connection was lost.");
+    });
+    await updater.checkManually();
+    expect(deps.notify).toHaveBeenCalledWith("Couldn't check for updates: The network connection was lost.");
   });
 
   it("brings back a banner dismissed with Later", async () => {
