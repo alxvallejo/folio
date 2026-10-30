@@ -49,6 +49,8 @@ Folio opens the Markdown files in your posts folder for writing (`~/Documents/Fo
 
 ## Daily report
 
+<img src="docs/screenshots/daily-report.png" alt="A daily report open in Folio, with Reports in the sidebar">
+
 **File › Daily Report** (⇧⌘R) runs the report command from Settings in your login shell and opens the Markdown file whose path the command prints last. With no command set, it opens **Help › Build a Daily Report**, a guide to the starter script Folio ships in `guides/daily-report/`: it summarizes yesterday's git commits and Claude Code sessions with `claude -p` for a standup. While the command runs, a banner offers Cancel; if it fails, the banner shows its last lines of error output.
 
 ## Develop
