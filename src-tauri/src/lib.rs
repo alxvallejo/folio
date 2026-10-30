@@ -7,6 +7,7 @@ mod navigation;
 mod open;
 mod posts;
 mod relaunch;
+mod report;
 mod watch;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -20,6 +21,7 @@ pub fn run() {
         .manage(open::PendingOpen::default())
         .manage(watch::Watchers::default())
         .manage(menu::QuitRequest::default())
+        .manage(report::RunningReport::default())
         .menu(menu::build)
         .on_menu_event(menu::on_event)
         .setup(|app| {
@@ -49,6 +51,9 @@ pub fn run() {
             posts::write_post,
             posts::create_post,
             posts::rename_post,
+            report::run_report,
+            report::cancel_report,
+            report::report_guide,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Folio");

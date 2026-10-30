@@ -14,6 +14,8 @@ export interface Settings {
   lineHeight: number;
   maxWidth: number;
   editorCommand: string;
+  /** Run by File › Daily Report; prints the report's path last. Empty until set up. */
+  reportCommand: string;
   lastFolder: string | null;
   /** `~`-abbreviated posts folder. Only Rust changes it, so patches never write it. */
   postsFolder: string | null;
@@ -48,6 +50,7 @@ export const DEFAULTS: Settings = {
   lineHeight: 1.65,
   maxWidth: 68,
   editorCommand: "code",
+  reportCommand: "",
   lastFolder: null,
   postsFolder: null,
   autoUpdateCheck: true,
@@ -106,6 +109,7 @@ export function effectiveSettings(input: RawConfig): Settings {
     lineHeight: numeric("lineHeight"),
     maxWidth: numeric("maxWidth"),
     editorCommand: text(raw.editorCommand) ?? DEFAULTS.editorCommand,
+    reportCommand: text(raw.reportCommand) ?? DEFAULTS.reportCommand,
     lastFolder: text(raw.lastFolder),
     postsFolder: text(raw.postsFolder),
     autoUpdateCheck: typeof raw.autoUpdateCheck === "boolean" ? raw.autoUpdateCheck : DEFAULTS.autoUpdateCheck,

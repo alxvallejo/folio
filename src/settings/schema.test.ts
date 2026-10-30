@@ -14,6 +14,7 @@ describe("effectiveSettings", () => {
       lineHeight: 1.65,
       maxWidth: 68,
       editorCommand: "code",
+      reportCommand: "",
       lastFolder: null,
       postsFolder: null,
       autoUpdateCheck: true,
@@ -163,5 +164,18 @@ describe("recent files", () => {
   it("remembers a collapsed Recent section", () => {
     expect(applyPatch({}, { recentOpen: false })).toEqual({ recentOpen: false });
     expect(effectiveSettings({ recentOpen: false }).recentOpen).toBe(false);
+  });
+});
+
+describe("report command", () => {
+  it("is empty until set, and trimmed", () => {
+    expect(effectiveSettings({}).reportCommand).toBe("");
+    expect(effectiveSettings({ reportCommand: " ~/daily-report/daily-report " }).reportCommand).toBe("~/daily-report/daily-report");
+    expect(effectiveSettings({ reportCommand: 7 }).reportCommand).toBe("");
+  });
+
+  it("removes the key when it's cleared", () => {
+    expect(applyPatch({}, { reportCommand: "~/r" })).toEqual({ reportCommand: "~/r" });
+    expect(applyPatch({ reportCommand: "~/r" }, { reportCommand: "" })).toEqual({});
   });
 });

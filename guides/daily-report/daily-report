@@ -1,0 +1,222 @@
+#!/bin/bash
+# daily-report: summarize a day of work from git commits and Claude Code
+# sessions, and save it as a Markdown file.
+#
+#   daily-report                 yesterday (on Monday: Friday through Sunday)
+#   daily-report 2026-10-27      one day
+#   daily-report 2026-10-20 2026-10-24   a range, e.g. a weekly report
+#   daily-report --digest [...]  print the collected activity and stop (nothing is sent to Claude)
+#   daily-report --print [...]   print the report instead of saving it
+#   daily-report --force [...]   write the report again even if it's already saved
+#
+# When it saves a report, the last line it prints is the report's path, which
+# is how Folio (File > Daily Report) knows what to open. Everything else goes
+# to stderr. If the report is already saved, it prints the path and stops.
+#
+# Settings come from ~/.config/daily-report/config if it exists, and the
+# writing instructions from ~/.config/daily-report/prompt.md if that exists,
+# otherwise prompt.md next to this script (see README).
+
+set -euo pipefail
+
+# --- Settings ---------------------------------------------------------------
+
+# Each can also be set in the environment or in the config file below.
+REPORTS_DIR="${REPORTS_DIR:-$HOME/Documents/Folio/Reports}"  # where reports are saved
+REPO_ROOTS="${REPO_ROOTS:-$HOME/Sites}"                      # folders searched for git repos (space-separated)
+REPO_DEPTH="${REPO_DEPTH:-4}"                                # how deep to look for repos under each root
+# Whose commits count: names or emails, separated by commas. A commit matches
+# if its author contains any of them. Defaults to your git name and email.
+AUTHOR="${AUTHOR:-$(git config --global user.name || true), $(git config --global user.email || true)}"
+KEEP_DAYS="${KEEP_DAYS:-7}"                                  # delete reports older than this; 0 keeps them all
+MODEL="${MODEL:-sonnet}"                                     # model that writes the summary
+
+CONFIG_DIR="$HOME/.config/daily-report"
+[ -f "$CONFIG_DIR/config" ] && . "$CONFIG_DIR/config"
+
+# Your own copy of the prompt wins, so you can change the wording without
+# touching the script's folder.
+HERE="$(cd "$(dirname "$0")" && pwd)"
+if [ -z "${PROMPT_FILE:-}" ]; then
+  if [ -f "$CONFIG_DIR/prompt.md" ]; then PROMPT_FILE="$CONFIG_DIR/prompt.md"; else PROMPT_FILE="$HERE/prompt.md"; fi
+fi
+
+mode=save
+force=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --digest) mode=digest ;;
+    --print)  mode=print ;;
+    --force)  force=1 ;;
+    *) break ;;
+  esac
+  shift
+done
+
+author_args=()
+IFS=',' read -ra authors <<< "$AUTHOR"
+for a in "${authors[@]}"; do
+  a="$(echo "$a" | sed 's/^ *//; s/ *$//')"
+  [ -n "$a" ] && author_args+=(--author="$a")
+done
+if [ "${#author_args[@]}" = 0 ]; then
+  echo "daily-report: set AUTHOR, or your name with git config --global user.name" >&2
+  exit 1
+fi
+
+# --- Step 1: which days -----------------------------------------------------
+
+if [ -n "${1:-}" ]; then
+  start="$1"; end="${2:-$1}"
+else
+  end="$(date -v-1d +%F)"
+  if [ "$(date +%u)" = 1 ]; then start="$(date -v-3d +%F)"; else start="$end"; fi
+fi
+
+after_end="$(date -j -v+1d -f %F "$end" +%F)"
+# Session transcripts use UTC timestamps, so turn local midnights into UTC.
+from_utc="$(date -u -r "$(date -j -f '%F %T' "$start 00:00:00" +%s)" +%Y-%m-%dT%H:%M:%S)"
+to_utc="$(date -u -r "$(date -j -f '%F %T' "$after_end 00:00:00" +%s)" +%Y-%m-%dT%H:%M:%S)"
+
+if [ "$start" = "$end" ]; then
+  period="$(date -j -f %F "$start" '+%A, %B %-d, %Y')"
+  name="$start"
+else
+  period="$(date -j -f %F "$start" '+%A, %B %-d') to $(date -j -f %F "$end" '+%A, %B %-d, %Y')"
+  name="${start}_to_${end}"
+fi
+
+# Already saved, by the morning run or an earlier click in Folio: reuse it.
+if [ "$mode" = save ] && [ "$force" = 0 ] && [ -f "$REPORTS_DIR/$name.md" ]; then
+  echo "daily-report: $name.md is already saved; --force writes it again" >&2
+  echo "$REPORTS_DIR/$name.md"
+  exit 0
+fi
+
+# --- Step 2: collect the activity -------------------------------------------
+
+digest="$(mktemp -t daily-report)"
+trap 'rm -f "$digest"' EXIT
+
+echo "# Activity for $period" > "$digest"
+
+# Git: your commits in every repo under REPO_ROOTS, across all branches.
+echo -e "\n## Git commits by $AUTHOR" >> "$digest"
+commits=0
+for root in $REPO_ROOTS; do
+  while IFS= read -r gitdir; do
+    repo="$(dirname "$gitdir")"
+    # Mark commits that have reached the remote's main branch, so the summary
+    # can tell released work from work still on a feature branch.
+    main="$(git -C "$repo" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+    log=""
+    while IFS= read -r line; do
+      hash="${line%% *}"
+      if [ -n "$main" ] && git -C "$repo" merge-base --is-ancestor "$hash" "$main" 2>/dev/null; then
+        line="$line (on $main)"
+      fi
+      log+="- $line"$'\n'
+    done < <(git -C "$repo" log --all "${author_args[@]}" \
+      --since="$start 00:00" --until="$after_end 00:00" \
+      --format='%h %ad %s' --date=format:'%a %H:%M' 2>/dev/null || true)
+    if [ -n "$log" ]; then
+      label="$repo"
+      case "$repo" in "$HOME"/*) label="~${repo#"$HOME"}" ;; esac
+      echo -e "\n### $label\n$log" >> "$digest"
+      commits=$((commits + 1))
+    fi
+  done < <(find "$root" -maxdepth "$REPO_DEPTH" -name .git -type d -prune 2>/dev/null)
+done
+[ "$commits" = 0 ] && echo "(none)" >> "$digest"
+
+# Claude Code: for each session with activity in the period, what you asked
+# and the last thing Claude said. Transcripts are JSON lines; any line that
+# doesn't parse is skipped.
+echo -e "\n## Claude Code sessions" >> "$digest"
+sessions=0
+while IFS= read -r file; do
+  summary="$(jq -nrR --arg from "$from_utc" --arg to "$to_utc" --arg home "$HOME" '
+    def text: if type == "string" then . else (map(select(.type == "text") | .text) | join(" ")) end;
+    def inperiod: (.timestamp // "") as $t | $t >= $from and $t < $to;
+    [inputs | fromjson? // empty] as $lines
+    | ($lines | map(.cwd // empty) | first // "?" | sub("^" + $home; "~")) as $cwd
+    | ($lines
+        | map(select(.type == "user" and inperiod and (.isMeta | not)) | .message.content | text
+              | select(test("^\\s*$") | not)
+              | select(test("^\\s*(<|Base directory for this skill|\\[Request interrupted|Caveat:)") | not)
+              | gsub("\\s+"; " ") | .[0:300])) as $asked
+    | ($lines
+        | map(select(.type == "assistant" and inperiod) | .message.content
+              | if type == "array" then map(select(.type == "text") | .text) | join("\n") else "" end
+              | select(length > 0))
+        | last // "") as $last
+    | if ($asked | length) == 0 then empty else
+        "\n### Session in \($cwd)\nYou asked:\n"
+        + ($asked[0:10] | map("- " + .) | join("\n"))
+        + "\n\nClaude ended with:\n" + $last[-1500:]
+      end
+  ' < "$file" 2>/dev/null || true)"
+  if [ -n "$summary" ]; then
+    echo "$summary" >> "$digest"
+    sessions=$((sessions + 1))
+  fi
+done < <(find "$HOME/.claude/projects" -name '*.jsonl' -not -path '*/subagents/*' -newermt "$start 00:00:00" 2>/dev/null)
+[ "$sessions" = 0 ] && echo "(none)" >> "$digest"
+
+if [ "$mode" = digest ]; then cat "$digest"; exit 0; fi
+
+if [ "$commits" = 0 ] && [ "$sessions" = 0 ]; then
+  echo "daily-report: no activity for $period, nothing written" >&2
+  exit 0
+fi
+
+# --- Step 3: have Claude write the report -----------------------------------
+# No tools, no MCP servers, no settings files (so no hooks or plugins), and
+# no saved session, so this run never shows up in a later report. It runs from
+# an empty folder so no project's CLAUDE.md is picked up.
+
+workdir="$(mktemp -d -t daily-report)"
+trap 'rm -f "$digest"; rm -rf "$workdir"' EXIT
+body="$(cd "$workdir" && claude -p \
+  --model "$MODEL" \
+  --tools "" \
+  --strict-mcp-config \
+  --setting-sources "" \
+  --no-session-persistence \
+  --system-prompt "$(cat "$PROMPT_FILE")" \
+  "Write the report for $period from the activity below." < "$digest")"
+
+if [ -z "$body" ]; then
+  echo "daily-report: Claude returned nothing" >&2
+  exit 1
+fi
+
+report="---
+title: Work report, $period
+date: $start
+---
+
+$body"
+
+if [ "$mode" = print ]; then echo "$report"; exit 0; fi
+
+# --- Step 4: save it, and clear out old reports -----------------------------
+
+mkdir -p "$REPORTS_DIR"
+echo "$report" > "$REPORTS_DIR/.$name.md.tmp"
+mv "$REPORTS_DIR/.$name.md.tmp" "$REPORTS_DIR/$name.md"
+echo "daily-report: wrote $name.md" >&2
+
+if [ "$KEEP_DAYS" -gt 0 ]; then
+  cutoff="$(date -v-"$KEEP_DAYS"d +%F)"
+  for old in "$REPORTS_DIR"/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*.md; do
+    [ -e "$old" ] || continue
+    day="$(basename "$old" | cut -c1-10)"
+    if [[ "$day" < "$cutoff" ]]; then
+      rm "$old"
+      echo "daily-report: removed $(basename "$old")" >&2
+    fi
+  done
+fi
+
+echo "$REPORTS_DIR/$name.md"

@@ -62,6 +62,12 @@ export const api = {
   defaultMarkdownApp: () => invoke<DefaultApp>("default_markdown_app"),
   /** Shows the macOS confirmation dialog; resolves when the user answers. */
   makeDefaultMarkdownApp: () => invoke<"made" | "declined">("make_default_markdown_app"),
+  /** Runs the report command and resolves with the Markdown file it printed last; rejects with its error output. */
+  runReport: (command: string) => invoke<string>("run_report", { command }),
+  /** Stops the running report command; its runReport then rejects with "cancelled". */
+  cancelReport: () => invoke<void>("cancel_report"),
+  /** The bundled "Build your own daily report" guide. */
+  reportGuide: () => invoke<string>("report_guide"),
 };
 
 const on =

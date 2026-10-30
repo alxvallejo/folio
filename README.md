@@ -47,6 +47,10 @@ Folio opens the Markdown files in your posts folder for writing (`~/Documents/Fo
 - **Copy for Substack** (⇧⌘C) puts the post on the clipboard as formatted text, ready to paste into a Substack draft.
 - **Mark published** sets `status: published` and adds a `published` date; **Mark as draft** flips it back.
 
+## Daily report
+
+**File › Daily Report** (⇧⌘R) runs the report command from Settings in your login shell and opens the Markdown file whose path the command prints last. With no command set, it opens **Help › Build a Daily Report**, a guide to the starter script Folio ships in `guides/daily-report/`: it summarizes yesterday's git commits and Claude Code sessions with `claude -p` for a standup. While the command runs, a banner offers Cancel; if it fails, the banner shows its last lines of error output.
+
 ## Develop
 
 ```sh
@@ -74,4 +78,4 @@ The script checks that you're on a clean, pushed `master` and that the tests pas
 
 ## Config
 
-Settings live in `~/.config/folio/config.json`. Besides posts you edit, it is the only file Folio writes, apart from replacing its own app when you install an update. Folio never changes your other documents, and it only becomes the default Markdown app after you confirm the macOS dialog.
+Settings live in `~/.config/folio/config.json`. Besides posts you edit, it is the only file Folio writes, apart from replacing its own app when you install an update. Folio never changes your other documents, and it only becomes the default Markdown app after you confirm the macOS dialog. The report command you set runs as you, so it can write wherever you can; Folio only opens the file it reports.

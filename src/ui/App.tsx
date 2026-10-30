@@ -20,11 +20,13 @@ import { shikiThemeName } from "../render/shikiThemes";
 import { createSettingsStore } from "../settings/store";
 import { activeTheme, applyTheme, resolveAppearance } from "../themes/apply";
 import { themesFor } from "../themes/catalog";
+import { createReportRunner } from "../report/runner";
 import { createUpdater, releaseNotesUrl } from "../update/updater";
 import { DocumentView, LargeFilePrompt } from "./DocumentView";
 import { EmptyState } from "./EmptyState";
 import { FindBar } from "./FindBar";
 import { leavePost } from "./leavePost";
+import { ReportBanner } from "./ReportBanner";
 import { createAndOpenPost } from "./newPost";
 import { forgetRecent, pushRecent, renameRecent } from "./recent";
 import { scrollToFragment } from "./scroll";
@@ -211,6 +213,13 @@ export function App() {
     [openTree, store, home],
   );
 
+  // The bundled daily report guide. It's never added to Recent, and while no report command is set it
+  // shows a banner pointing at Settings.
+  const [guidePath, setGuidePath] = useState<string | null>(null);
+  useEffect(() => {
+    api.reportGuide().then(setGuidePath, () => setGuidePath(null));
+  }, []);
+
   // Recent files, kept `~`-abbreviated in config.json like lastFolder. The ref holds the latest
   // list, so opens in quick succession each build on the one before rather than on stale settings.
   const recentRef = useRef(settings.recentFiles);
@@ -230,8 +239,8 @@ export function App() {
   );
   // Wait for settings, or a file opened at launch would replace the saved list.
   useEffect(() => {
-    if (loaded && home !== null && doc.path) updateRecent((list) => pushRecent(list, tilde(doc.path!)));
-  }, [loaded, home, doc.path, tilde, updateRecent]);
+    if (loaded && home !== null && doc.path && doc.path !== guidePath) updateRecent((list) => pushRecent(list, tilde(doc.path!)));
+  }, [loaded, home, doc.path, guidePath, tilde, updateRecent]);
   const { rename: followDocumentRename } = doc;
   const followRename = useCallback(
     (from: string, to: string) => {
@@ -317,6 +326,31 @@ export function App() {
     else writer.replace(result.text);
   }, [notify]);
 
+  // File › Daily Report: runs the report command and opens the file it wrote, or the guide when none is set.
+  const report = useMemo(() => createReportRunner({ run: api.runReport, cancel: api.cancelReport }), []);
+  const reportState = useSyncExternalStore(report.subscribe, report.getState);
+  const [reportFocus, setReportFocus] = useState(0);
+  const openGuide = useCallback(async () => {
+    try {
+      await openFile(guidePath ?? (await api.reportGuide()));
+    } catch (e) {
+      notify(sentence(`Couldn't open the guide: ${String(e)}`));
+    }
+  }, [guidePath, openFile, notify]);
+  const runReport = useCallback(async () => {
+    const command = settings.reportCommand;
+    if (!command) {
+      await openGuide();
+      return;
+    }
+    const path = await report.start(command);
+    if (path) await openFile(path);
+  }, [settings.reportCommand, report, openGuide, openFile]);
+  const setUpReport = useCallback(() => {
+    setSettingsOpen(true);
+    setReportFocus((n) => n + 1);
+  }, []);
+
   const onMenuAction = useEffectEvent((id: string) => {
     if (id === "copy-for-substack") {
       if (writing) void copyForSubstack();
@@ -332,6 +366,8 @@ export function App() {
     }
     if (id === "new-post") void startNewPost();
     else if (id === "open-posts") void openPosts();
+    else if (id === "daily-report") void runReport();
+    else if (id === "daily-report-guide") void openGuide();
   });
   useEffect(() => {
     const unlisten = events.onMenuAction((id) => onMenuAction(id));
@@ -580,6 +616,17 @@ export function App() {
             })
           }
         />
+        <ReportBanner
+          state={reportState}
+          needsSetup={doc.path !== null && doc.path === guidePath && !settings.reportCommand}
+          onCancel={report.cancel}
+          onDismiss={report.dismiss}
+          onOpenGuide={() => {
+            report.dismiss();
+            void openGuide();
+          }}
+          onSetUp={setUpReport}
+        />
         <div className={writing ? "doc-scroll writing" : "doc-scroll"} ref={scrollRef}>
           {body}
         </div>
@@ -593,6 +640,7 @@ export function App() {
             onMakeDefault={() => void makeDefaultApp()}
             onChoosePostsFolder={() => void choosePostsFolder()}
             onClearPostsFolder={() => void clearPostsFolder()}
+            reportFocus={reportFocus}
             onChange={updateSettings}
             onClose={() => setSettingsOpen(false)}
           />

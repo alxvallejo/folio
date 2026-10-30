@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { DefaultApp } from "../lib/api";
 import { RANGES, type Settings } from "../settings/schema";
 import type { Appearance } from "../themes/apply";
@@ -18,11 +18,13 @@ interface Props {
   onMakeDefault: () => void;
   onChoosePostsFolder: () => void;
   onClearPostsFolder: () => void;
+  /** Bumped to focus the report command field, from the guide's Set Up in Settings. */
+  reportFocus: number;
   onChange: (patch: Partial<Settings>) => void;
   onClose: () => void;
 }
 
-export function SettingsPanel({ settings, shownTheme, invalid, defaultApp, makingDefault, onMakeDefault, onChoosePostsFolder, onClearPostsFolder, onChange, onClose }: Props) {
+export function SettingsPanel({ settings, shownTheme, invalid, defaultApp, makingDefault, onMakeDefault, onChoosePostsFolder, onClearPostsFolder, reportFocus, onChange, onClose }: Props) {
   const theme = THEMES[shownTheme];
   return (
     <aside className="settings-panel" aria-label="Settings">
@@ -50,6 +52,14 @@ export function SettingsPanel({ settings, shownTheme, invalid, defaultApp, makin
       <RangeField label="Line height" range={RANGES.lineHeight} value={settings.lineHeight} format={(v) => v.toFixed(2)} onChange={(lineHeight) => onChange({ lineHeight })} />
       <RangeField label="Max width" range={RANGES.maxWidth} value={settings.maxWidth} format={(v) => `${v}ch`} onChange={(maxWidth) => onChange({ maxWidth })} />
       <TextField label="Editor command" value={settings.editorCommand} onCommit={(editorCommand) => onChange({ editorCommand })} />
+      <TextField
+        label="Report command"
+        value={settings.reportCommand}
+        placeholder="~/daily-report/daily-report"
+        optional
+        focusSignal={reportFocus}
+        onCommit={(reportCommand) => onChange({ reportCommand })}
+      />
       <label className="settings-check">
         <input type="checkbox" checked={settings.autoUpdateCheck} onChange={(e) => onChange({ autoUpdateCheck: e.target.checked })} />
         Check for updates automatically
@@ -71,7 +81,7 @@ export function SettingsPanel({ settings, shownTheme, invalid, defaultApp, makin
         </div>
       </div>
       <DefaultAppRow status={defaultApp} busy={makingDefault} onMakeDefault={onMakeDefault} />
-      <p className="settings-hint">Leave a font empty to use the theme's. Fonts accept any installed family name. Settings live in ~/.config/folio/config.json, which you can also edit by hand.</p>
+      <p className="settings-hint">File › Daily Report runs the report command; Help › Build a Daily Report shows how to make one. Leave a font empty to use the theme's. Fonts accept any installed family name. Settings live in ~/.config/folio/config.json, which you can also edit by hand.</p>
     </aside>
   );
 }
@@ -143,24 +153,35 @@ function FontField({ label, value, themeDefault, suggestions, onCommit }: FontFi
 interface TextFieldProps {
   label: string;
   value: string;
+  placeholder?: string;
+  /** Lets the field be cleared; otherwise an emptied field goes back to its value. */
+  optional?: boolean;
+  /** Focuses the field whenever it changes, after the first render. */
+  focusSignal?: number;
   onCommit: (value: string) => void;
 }
 
 /** Commits on blur or Enter, so typing doesn't write config.json on every keystroke. */
-function TextField({ label, value, onCommit }: TextFieldProps) {
+function TextField({ label, value, placeholder, optional = false, focusSignal = 0, onCommit }: TextFieldProps) {
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (focusSignal > 0) input.current?.focus();
+  }, [focusSignal]);
   const commit = () => {
     const next = draft.trim();
-    if (next && next !== value) onCommit(next);
+    if ((next || optional) && next !== value) onCommit(next);
     else setDraft(value);
   };
   return (
     <label>
       {label}
       <input
+        ref={input}
         type="text"
         value={draft}
+        placeholder={placeholder}
         spellCheck={false}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
